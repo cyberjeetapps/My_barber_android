@@ -1,0 +1,3 @@
+import React from 'react';
+import {AdminCollectionManager,commonStatuses} from '@/components/admin/AdminKit';
+export default function Screen(){return <AdminCollectionManager title="Admin Notifications" subtitle="Operational alerts and delivery tracking" collectionName="adminNotifications" searchKeys={['title','message','type']} statusOptions={[{label:'Unread',value:'unread'},{label:'Read',value:'read'},{label:'Archived',value:'archived'}]} allowCreate formFields={[{key:'title',label:'Title'},{key:'message',label:'Message',multiline:true},{key:'type',label:'Type'}]} defaultValues={{status:'unread'}} columns={[{key:'title',label:'Notification'},{key:'message',label:'Message'},{key:'type',label:'Type'},{key:'createdAt',label:'Created'}]} />}

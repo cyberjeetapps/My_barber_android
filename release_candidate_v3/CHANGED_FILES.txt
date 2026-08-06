@@ -1,0 +1,10 @@
+app/(tabs)/_layout.tsx
+app/(tabs)/shopping.tsx
+app/(tabs)/academy.tsx
+app/login.tsx
+app/owner/dashboard/_layout.tsx
+app/owner/dashboard/index.tsx
+app/owner/dashboard/today-board.tsx
+functions/src/index.ts
+release_candidate_v3/RELEASE_NOTES.md
+release_candidate_v3/VALIDATION.md

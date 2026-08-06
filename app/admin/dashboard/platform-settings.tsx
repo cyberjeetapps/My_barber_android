@@ -1,0 +1,3 @@
+import React from 'react';
+import {AdminCollectionManager,commonStatuses} from '@/components/admin/AdminKit';
+export default function Screen(){return <AdminCollectionManager title="Platform Settings" subtitle="Manage operational configuration" collectionName="platformSettings" searchKeys={['name','key','description']} statusOptions={[{label:'Active',value:'active'},{label:'Inactive',value:'inactive'}]} allowCreate allowDelete formFields={[{key:'name',label:'Setting name'},{key:'key',label:'Key'},{key:'value',label:'Value'},{key:'description',label:'Description',multiline:true}]} defaultValues={{status:'active'}} columns={[{key:'name',label:'Setting'},{key:'key',label:'Key'},{key:'value',label:'Value'},{key:'description',label:'Description'}]} />}

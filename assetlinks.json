@@ -1,0 +1,14 @@
+[{
+  "relation": [
+    "delegate_permission/common.handle_all_urls",
+    "delegate_permission/common.get_login_creds"
+  ],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "com.groomzy.mybarberapp",
+    "sha256_cert_fingerprints": [
+      "F6:06:3E:0F:3F:59:CF:62:8E:B7:70:97:F1:C1:03:5E:72:A2:E5:B4:E0:45:0D:18:B3:FC:85:EF:45:43:64:98",
+      "BE:D1:DB:C8:C8:F0:19:C9:30:11:7E:1A:77:82:84:F8:30:2E:F0:2A:7B:E9:FD:D8:07:E5:E5:5B:83:E2:7A:DB"
+    ]
+  }
+}]

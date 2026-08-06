@@ -1,0 +1,3 @@
+import React from 'react';
+import {AdminCollectionManager,commonStatuses} from '@/components/admin/AdminKit';
+export default function Screen(){return <AdminCollectionManager title="Settlements" subtitle="Track salon payouts and holds" collectionName="settlements" searchKeys={['shopName','ownerName','reference','period']} statusOptions={[{label:'Pending',value:'pending'},{label:'Processed',value:'processed'},{label:'Held',value:'held'},{label:'Failed',value:'failed'}]} columns={[{key:'shopName',label:'Salon'},{key:'ownerName',label:'Owner'},{key:'grossAmount',label:'Gross'},{key:'commission',label:'Commission'},{key:'netAmount',label:'Net payable'},{key:'reference',label:'Reference'}]} />}

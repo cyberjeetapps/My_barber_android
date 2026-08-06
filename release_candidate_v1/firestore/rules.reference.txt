@@ -1,0 +1,26 @@
+// Reference additions only. Merge after emulator tests; do not paste blindly.
+
+match /users/{userId}/favourites/{favouriteId} {
+  allow read, create, update, delete: if signedIn() && request.auth.uid == userId;
+}
+
+match /waitlistEntries/{entryId} {
+  allow create: if signedIn()
+    && request.resource.data.userId == request.auth.uid
+    && request.resource.data.status == 'waiting';
+  allow read: if signedIn()
+    && (resource.data.userId == request.auth.uid
+      || ownsShop(resource.data.shopId)
+      || isAdmin());
+  allow update: if signedIn()
+    && (resource.data.userId == request.auth.uid
+      || ownsShop(resource.data.shopId)
+      || isAdmin());
+  allow delete: if false;
+}
+
+match /reengagementCampaigns/{campaignId} {
+  allow read: if signedIn()
+    && (resource.data.ownerId == request.auth.uid || isAdmin());
+  allow write: if false; // Cloud Functions/Admin SDK only
+}

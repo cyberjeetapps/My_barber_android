@@ -1,0 +1,124 @@
+{
+  "project_info": {
+    "project_number": "811071463623",
+    "project_id": "groomy-22576",
+    "storage_bucket": "groomy-22576.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:811071463623:android:0729c5b7cf5e8d7bb35ee2",
+        "android_client_info": {
+          "package_name": "com.cyberjeet.groomyapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDArtVC1GEQYcgI40UaHFhoZCwgiw3wG4I"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:811071463623:android:7a54e12eb3575659b35ee2",
+        "android_client_info": {
+          "package_name": "com.cyberjeet.groomzy"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDArtVC1GEQYcgI40UaHFhoZCwgiw3wG4I"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:811071463623:android:1b5dac134836e065b35ee2",
+        "android_client_info": {
+          "package_name": "com.cyberjeet.mybarbershop"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDArtVC1GEQYcgI40UaHFhoZCwgiw3wG4I"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:811071463623:android:e167177fc5ca9828b35ee2",
+        "android_client_info": {
+          "package_name": "com.groomzy.mybarberapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDArtVC1GEQYcgI40UaHFhoZCwgiw3wG4I"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:811071463623:android:aed50d6ec51323c8b35ee2",
+        "android_client_info": {
+          "package_name": "com.groomzytechnologies.com"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDArtVC1GEQYcgI40UaHFhoZCwgiw3wG4I"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:811071463623:android:71e51fcd283f2f69b35ee2",
+        "android_client_info": {
+          "package_name": "com.mygroomzy.com"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDArtVC1GEQYcgI40UaHFhoZCwgiw3wG4I"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

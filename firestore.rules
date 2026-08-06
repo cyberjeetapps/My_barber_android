@@ -1,0 +1,200 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isAdmin() { return signedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)); }
+    // Any authenticated shop-owner account (not scoped to a specific shop —
+    // used below where a document doesn't carry a single unambiguous shopId
+    // field to check with ownsShop(), e.g. multi-shop services/offers and
+    // owner-only tooling like attendance/OTP records). Coarser than
+    // ownsShop(), but still excludes plain customers and the public.
+    function isOwner() { return signedIn() && exists(/databases/$(database)/documents/barberowner/$(request.auth.uid)); }
+    function ownsShop(shopId) { return signedIn() && get(/databases/$(database)/documents/shops/$(shopId)).data.ownerId == request.auth.uid; }
+
+    match /users/{userId} {
+      allow read: if signedIn() && (request.auth.uid == userId || isAdmin());
+      allow create: if signedIn() && request.auth.uid == userId;
+      // Reward/points/credit fields are only ever supposed to change via
+      // the Cloud Functions in functions/src/index.ts (booking-milestone,
+      // referral payout, Gold grant/expiry — all run with the Admin SDK,
+      // which bypasses these rules entirely). Without this restriction,
+      // a customer could open dev tools and grant themselves unlimited
+      // points, Gold status, or free-service credits with a single direct
+      // Firestore write — the client-side redeem/generate-code helpers in
+      // utils/referral.ts never touch these fields, only isAdmin() writes
+      // (i.e. nothing client-side) should be able to.
+      allow update: if isAdmin() || (
+        signedIn() && request.auth.uid == userId &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'rewardPoints', 'freeServiceCredits', 'goldTierGranted',
+          'goldExpiresAt', 'goldGrantedAt', 'goldExpiredAt', 'goldCycleCount',
+          'successfulReferralCount', 'referralRewardGranted'
+        ])
+      );
+    }
+    match /barberowner/{ownerId} {
+      // Owner login (app/owner/login.tsx) and the dashboard already read
+      // and write an owner's own document directly — there was no rule
+      // permitting that here at all, meaning either this file is stale
+      // relative to what's actually deployed, or owner login is broken
+      // under these exact rules. Do not deploy this without first
+      // diffing against the live rules in the Firebase console — see
+      // CONFIGURATION_CHECKLIST.xlsx.
+      allow read: if signedIn() && (request.auth.uid == ownerId || isAdmin());
+      // Same reasoning as users/{userId} above: bank/payout details and
+      // referral-credit balances must never be self-editable by the
+      // account they belong to, or an owner could redirect their own
+      // payouts to a different bank account, or grant themselves free
+      // appointment credits, with a direct client write.
+      allow update: if isAdmin() || (
+        signedIn() && request.auth.uid == ownerId &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'freeAppointmentCredits', 'goldCycleCount',
+          'bankAccountNumber', 'bankIfscCode', 'bankAccountHolderName', 'bankAccountName',
+          'razorpayRegistered', 'razorpayAccount'
+        ])
+      );
+    }
+    match /shops/{shopId} {
+      allow read: if true;
+      allow write: if isAdmin() || (signedIn() && request.resource.data.ownerId == request.auth.uid);
+    }
+    match /staff/{staffId} {
+      allow read: if true;
+      allow create: if signedIn() && ownsShop(request.resource.data.shopId);
+      allow update, delete: if isAdmin() || (signedIn() && ownsShop(resource.data.shopId));
+    }
+    match /appointments/{id} {
+      allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
+      allow read: if signedIn() && (resource.data.userId == request.auth.uid || ownsShop(resource.data.shopId) || isAdmin());
+      allow update: if signedIn() && (resource.data.userId == request.auth.uid || ownsShop(resource.data.shopId) || isAdmin());
+    }
+    match /familybookings/{id} {
+      allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
+      allow read: if signedIn() && (resource.data.userId == request.auth.uid || ownsShop(resource.data.shopId) || isAdmin());
+      allow update: if signedIn() && (resource.data.userId == request.auth.uid || ownsShop(resource.data.shopId) || isAdmin());
+    }
+    // --- Marketplace content: browsable by everyone (including signed-out
+    // visitors, same as /shops and /staff above), managed by any owner
+    // account or admin. Not scoped to the specific owning shop — several of
+    // these documents apply to multiple shops at once (shopIds arrays), and
+    // getting per-shop scoping subtly wrong here risks silently blocking
+    // legitimate owner writes, which is worse than the coarser isOwner()
+    // check. Tightening this to per-shop ownership is a good follow-up once
+    // each collection's shop-linkage field is standardized.
+    match /services/{id} {
+      allow read: if true;
+      allow write: if isAdmin() || isOwner();
+    }
+    match /offers/{id} {
+      allow read: if true;
+      allow write: if isAdmin() || isOwner();
+    }
+    match /packages/{id} {
+      allow read: if true;
+      allow write: if isAdmin() || isOwner();
+    }
+    match /coupons/{id} {
+      allow read: if true; // customers validate a code before it's redeemed
+      allow write: if isAdmin() || isOwner();
+    }
+    match /reviews/{id} {
+      allow read: if true; // approved reviews shown to customers
+      allow write: if isAdmin() || isOwner();
+    }
+    match /hairstyleCatalog/{id} {
+      allow read: if true; // AI hairstyle try-on browsing
+      allow write: if isAdmin() || isOwner();
+    }
+
+    // Owner submissions awaiting admin approval, and the equivalent queue
+    // for customer-submitted reviews. Read is broader than strictly
+    // necessary (any owner can see the full pending queue, not just their
+    // own submissions) for the same "don't over-scope blind" reasoning as
+    // above — worth narrowing once each doc's owner-linkage field is settled.
+    match /pending_services/{id} { allow read, write: if isAdmin() || isOwner(); }
+    match /pending_offers/{id} { allow read, write: if isAdmin() || isOwner(); }
+    match /pending_packages/{id} { allow read, write: if isAdmin() || isOwner(); }
+    match /pending_staff/{id} { allow read, write: if isAdmin() || isOwner(); }
+    match /{collectionId}/{id} {
+      allow create: if collectionId == 'Pending reviews' && signedIn();
+      allow read, update, delete: if collectionId == 'Pending reviews' && isAdmin();
+    }
+
+    // Personal records — scoped to the owning user (by uid field), plus the
+    // relevant shop owner and admin where the app's own code needs it.
+    match /package_purchases/{id} {
+      allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
+      allow read, update: if isAdmin()
+        || (signedIn() && resource.data.userId == request.auth.uid)
+        || (resource.data.shopId is string && ownsShop(resource.data.shopId));
+    }
+    match /favorites/{id} {
+      allow read, delete: if isAdmin() || (signedIn() && resource.data.userId == request.auth.uid);
+      allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
+    }
+    match /notifications/{id} {
+      allow create: if signedIn(); // customers/owners can notify another party (e.g. a new booking)
+      allow read, update: if isAdmin() || (signedIn() && resource.data.userId == request.auth.uid);
+    }
+    match /pushTokens/{uid} {
+      allow write: if signedIn() && request.auth.uid == uid; // register/update only your own device token
+      allow read: if isAdmin() || isOwner(); // needed to target push notifications
+    }
+    match /adminDevices/{id} {
+      allow read: if isAdmin() || isOwner();
+      allow write: if isAdmin();
+    }
+    match /supportTickets/{id} {
+      allow create: if signedIn();
+      allow read, update: if isAdmin() || isOwner() || (signedIn() && resource.data.createdBy == request.auth.uid);
+    }
+    match /fallbackNotifications/{id} {
+      allow create: if signedIn(); // best-effort delivery-failure log
+      allow read: if isAdmin();
+    }
+
+    // Owner-only operational tooling — no customer-facing read/write exists
+    // in the app for either of these today.
+    match /staffAttendance/{id} { allow read, write: if isAdmin() || isOwner(); }
+    match /otps/{userId} { allow read, write: if isAdmin() || isOwner(); }
+    match /blockedSlots/{id} {
+      allow read: if true; // needed to compute booking availability for any customer
+      allow write: if isAdmin() || (signedIn() && ownsShop(request.resource.data.shopId));
+    }
+    match /announcementBanners/{id} {
+      // Absent shopId = platform-wide banner (admin-only); present shopId =
+      // shop-specific banner (that shop's owner or admin). Read is public,
+      // same as /shops, since signed-out browsers see the customer home screen.
+      allow read: if true;
+      allow create: if isAdmin() || (signedIn() && ownsShop(request.resource.data.shopId));
+      allow update, delete: if isAdmin() || (signedIn() && ownsShop(resource.data.shopId));
+    }
+    match /waitlist/{id} {
+      // Status only ever moves to 'notified' via the Cloud Function's Admin
+      // SDK (functions/src/index.ts), which bypasses these rules entirely —
+      // no client update rule exists for this collection.
+      allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
+      allow read, delete: if isAdmin()
+        || (signedIn() && resource.data.userId == request.auth.uid)
+        || ownsShop(resource.data.shopId);
+    }
+
+    // Live per-slot availability counters, written transactionally by the
+    // booking client itself (see utils/timeslotAvailability.ts) — the shopId
+    // lives in the document ID (`${shopId}_${isoDateTime}`), not a field, so
+    // it can't be checked with ownsShop() here without extra parsing.
+    match /timeslots/{id} {
+      allow read: if true;
+      allow write: if signedIn();
+    }
+
+    // Static, admin-managed lookup document (e.g. share/invite link).
+    match /applink/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /{document=**} { allow read, write: if isAdmin(); }
+  }
+}

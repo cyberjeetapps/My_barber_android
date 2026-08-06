@@ -1,0 +1,8 @@
+{
+  "expo": {
+     "notification": {
+      "icon": "./assets/images/icon.png",
+      "color": "#ffffff"
+    }
+  }
+}
