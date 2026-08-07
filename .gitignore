@@ -81,7 +81,7 @@ yarn-error.*
 .env
 .env.*
 !.env.example
-credentials.json
+
 **/service-account*.json
 setup-secrets.LOCAL-ONLY.sh
 **/.git/
