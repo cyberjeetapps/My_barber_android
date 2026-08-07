@@ -112,6 +112,25 @@ export default function StaffAttendance() {
     }
   };
 
+  const toggleBreak = async (staffMember: StaffMember, currentlyOnBreak: boolean) => {
+    try {
+      const newStatus = currentlyOnBreak ? 'present' : 'on_break';
+      await updateDoc(doc(db, 'staffAttendance', attendanceDocId(staffMember.id)), {
+        status: newStatus,
+      });
+      setAttendance((prev) => ({ 
+        ...prev, 
+        [staffMember.id]: { 
+          ...prev[staffMember.id], 
+          status: newStatus 
+        } 
+      }));
+      toast.success(`${staffMember.name} is now ${newStatus === 'on_break' ? 'on break' : 'back from break'}`);
+    } catch {
+      toast.error('Could not update break status');
+    }
+  };
+
   const openShiftEditor = (staffMember: StaffMember) => {
     setEditingShift(staffMember.id);
     setShiftDraft({ shiftStart: staffMember.shiftStart || '09:00', shiftEnd: staffMember.shiftEnd || '19:00' });
@@ -164,6 +183,7 @@ export default function StaffAttendance() {
             staff.map((s) => {
               const att = attendance[s.id];
               const isOnLeave = att?.status === 'on_leave';
+              const isOnBreak = att?.status === 'on_break';
               const isCheckedIn = !!att?.checkInAt && !att?.checkOutAt;
               const isDone = !!att?.checkOutAt;
 
@@ -174,17 +194,18 @@ export default function StaffAttendance() {
                     <View style={[
                       styles.statusPill,
                       isOnLeave && styles.pillLeave,
-                      isCheckedIn && styles.pillActive,
+                      isOnBreak && styles.pillBreak,
+                      (isCheckedIn && !isOnBreak) && styles.pillActive,
                       isDone && styles.pillDone,
                     ]}>
                       <Text style={styles.statusPillText}>
-                        {isOnLeave ? 'On leave' : isDone ? 'Checked out' : isCheckedIn ? 'Working' : 'Not checked in'}
+                        {isOnLeave ? 'On leave' : isOnBreak ? 'On break' : isDone ? 'Checked out' : isCheckedIn ? 'Working' : 'Not checked in'}
                       </Text>
                     </View>
                   </View>
                   <Text style={styles.meta}>{s.shopName}</Text>
 
-                  <View style={styles.actionsRow}>
+                  <View style={[styles.actionsRow, { flexWrap: 'wrap' }]}>
                     <TouchableOpacity
                       style={[styles.actionBtn, (isCheckedIn || isDone || isOnLeave) && styles.actionBtnDisabled]}
                       onPress={() => checkIn(s)}
@@ -201,8 +222,16 @@ export default function StaffAttendance() {
                       <LogOut size={14} color={!isCheckedIn ? Colors.textLight : Colors.primary} />
                       <Text style={styles.actionBtnText}>Check out</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.actionBtn} onPress={() => markLeave(s)}>
-                      <Calendar size={14} color={Colors.primary} />
+                    <TouchableOpacity
+                      style={[styles.actionBtn, (!isCheckedIn || isDone || isOnLeave) && styles.actionBtnDisabled]}
+                      onPress={() => toggleBreak(s, isOnBreak)}
+                      disabled={!isCheckedIn || isDone || isOnLeave}
+                    >
+                      <Clock size={14} color={(!isCheckedIn || isDone || isOnLeave) ? Colors.textLight : isOnBreak ? '#eab308' : Colors.primary} />
+                      <Text style={styles.actionBtnText}>{isOnBreak ? 'End break' : 'Start break'}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.actionBtn, isCheckedIn && styles.actionBtnDisabled]} onPress={() => markLeave(s)} disabled={isCheckedIn}>
+                      <Calendar size={14} color={isCheckedIn ? Colors.textLight : Colors.primary} />
                       <Text style={styles.actionBtnText}>Mark leave</Text>
                     </TouchableOpacity>
                   </View>
@@ -287,6 +316,7 @@ const styles = StyleSheet.create({
   pillActive: { backgroundColor: '#ecfdf3' },
   pillDone: { backgroundColor: '#eef4ff' },
   pillLeave: { backgroundColor: '#fef3f2' },
+  pillBreak: { backgroundColor: '#fef9c3' },
   statusPillText: { fontSize: 10, fontWeight: '700', color: '#475467' },
   actionsRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
   actionBtn: {

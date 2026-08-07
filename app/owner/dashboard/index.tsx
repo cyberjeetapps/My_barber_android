@@ -191,7 +191,7 @@ export default function OwnerDashboard() {
 
     try {
       setTimeout(() => {
-        router.push(route);
+        router.push(route as any);
         setTimeout(() => {
           setNavigationState(prev => ({ ...prev, [route]: false }));
         }, 1500);

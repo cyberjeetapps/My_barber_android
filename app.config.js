@@ -16,7 +16,7 @@ module.exports = {
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.groomzy.mybarberapp",
-      buildNumber: "12",
+      buildNumber: "13",
       infoPlist: {
         NSLocationWhenInUseUsageDescription: "This app needs your location to show nearby services",
         NSCameraUsageDescription: "MyBarber needs camera access so you can try on hairstyles and upload photos.",
@@ -29,15 +29,15 @@ module.exports = {
       backgroundColor: "#ffffff"
     },
     "web": {
-  "bundler": "metro",
-  "output": "single",
-  "favicon": "./assets/images/homelogo1.png",
-  "build": {
-    "babel": {
-      "include": ["withAutoVerify"]
-    }
-  }
-},
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./assets/images/homelogo1.png",
+      "build": {
+        "babel": {
+          "include": ["withAutoVerify"]
+        }
+      }
+    },
     plugins: [
       "expo-router",
       "expo-secure-store",
@@ -63,7 +63,7 @@ module.exports = {
       typedRoutes: true
     },
     android: {
-      versionCode: 12,
+      versionCode: 13,
       googleServicesFile: "./google-services.json",
       package: "com.groomzy.mybarberapp",
       permissions: [
