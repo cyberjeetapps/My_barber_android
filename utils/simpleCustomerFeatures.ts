@@ -216,7 +216,8 @@ export async function shareBookingReceipt(appointment: CustomerAppointment) {
 
           <div class="footer">
             Thank you for choosing MyBarber!<br/>
-            Please show this receipt at the shop if requested.
+            Please show this receipt at the shop if requested.<br/>
+            <div style="margin-top: 15px; font-size: 12px; font-weight: 600; color: #d1d5db;">Powered by Groomzy Technologies</div>
           </div>
         </div>
       </body>

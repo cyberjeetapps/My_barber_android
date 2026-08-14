@@ -418,10 +418,11 @@ const styles = StyleSheet.create({
   brandSince: {
     fontSize: 11,
     fontFamily: 'Poppins-Medium',
-    color: Colors.textLight || '#888',
+    fontWeight: 'bold',
+    color: '#000',
     textAlign: 'center',
     letterSpacing: 0.5,
-    opacity: 0.7,
+    opacity: 1,
     marginBottom: 4,
   },
   termsDisclosure: { fontSize: 12, color: Colors.textLight, textAlign: 'center', lineHeight: 18, marginBottom: 12 },

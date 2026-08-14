@@ -450,11 +450,8 @@ export default function OwnerDashboard() {
     // Priority 3: Firebase user display name
     if (user?.displayName) return user.displayName;
     
-    // Priority 4: Email username
-    if (user?.email) return user.email.split('@')[0];
-    
     // Fallback
-    return 'Owner';
+    return 'Rakesh';
   };
 
   return (

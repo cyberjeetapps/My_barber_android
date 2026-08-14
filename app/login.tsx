@@ -53,7 +53,7 @@ export default function Signup() {
   const { height: liveHeight } = useWindowDimensions();
   const isSmallScreen = liveHeight <= 667;
   const [agreedToTerms, setAgreedToTerms] = useState(false);
-  const [showTermsModal, setShowTermsModal] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(true);
   const [formData, setFormData] = useState({
     name: '',
     phoneNumber: '',
@@ -598,7 +598,13 @@ const safeStore = {
 
               <TouchableOpacity
                 style={styles.termsCheckboxContainer}
-                onPress={() => setAgreedToTerms(!agreedToTerms)}
+                onPress={() => {
+                  if (!agreedToTerms) {
+                    setShowTermsModal(true);
+                  } else {
+                    setAgreedToTerms(false);
+                  }
+                }}
                 activeOpacity={0.7}
               >
                 {agreedToTerms ? (
@@ -607,13 +613,13 @@ const safeStore = {
                   <Square size={20} color={Colors.textLight} />
                 )}
                 <Text style={styles.termsDisclosure}>
-                  I accept the Terms and Conditions of Groomzy Technologies.{' '}
+                  I accept the Privacy Policy & Agreement of Groomzy Technologies.{' '}
                   <Text
                     style={styles.termsLink}
                     onPress={() => setShowTermsModal(true)}
                     accessibilityRole="link"
                   >
-                    View terms
+                    View Agreement
                   </Text>
                 </Text>
               </TouchableOpacity>
@@ -676,7 +682,7 @@ const safeStore = {
               <X size={24} color={Colors.text} />
             </TouchableOpacity>
             <Text style={{ color: Colors.primary, fontSize: 18, fontFamily: 'Poppins-Bold', marginLeft: 16 }}>
-              Terms & Conditions
+              Privacy Policy & Agreement
             </Text>
           </View>
           <ScrollView style={{ flex: 1, padding: 20 }}>
@@ -704,9 +710,16 @@ const safeStore = {
           <View style={{ padding: 20, paddingBottom: 40, borderTopWidth: 1, borderTopColor: '#2A2A2A' }}>
             <TouchableOpacity
               style={{ backgroundColor: Colors.primary, padding: 16, borderRadius: 12, alignItems: 'center' }}
-              onPress={() => setShowTermsModal(false)}
+              onPress={() => {
+                if (!agreedToTerms) {
+                  setAgreedToTerms(true);
+                }
+                setShowTermsModal(false);
+              }}
             >
-              <Text style={{ color: '#FFF', fontSize: 16, fontFamily: 'Poppins-SemiBold' }}>Close</Text>
+              <Text style={{ color: '#FFF', fontSize: 16, fontFamily: 'Poppins-SemiBold' }}>
+                {!agreedToTerms ? 'I Agree' : 'Close'}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -761,10 +774,11 @@ const styles = StyleSheet.create({
   brandSince: {
     fontSize: 11,
     fontFamily: 'Poppins-Medium',
-    color: Colors.textLight || '#888',
+    fontWeight: 'bold',
+    color: '#000',
     textAlign: 'center',
     letterSpacing: 0.5,
-    opacity: 0.7,
+    opacity: 1,
     marginBottom: 4,
   },
   smallScreenTitle: {

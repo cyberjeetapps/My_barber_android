@@ -1,5 +1,27 @@
 const withAutoVerify = require('./withAutoVerify');
+const { withAndroidManifest } = require('@expo/config-plugins');
 
+const withExtractNativeLibsFalse = (config) => {
+  return withAndroidManifest(config, async (config) => {
+    const androidManifest = config.modResults;
+    if (androidManifest.manifest.application && androidManifest.manifest.application[0]) {
+      const app = androidManifest.manifest.application[0];
+      app.$['android:extractNativeLibs'] = "false";
+      
+      // Ensure the tools namespace exists
+      if (!androidManifest.manifest.$['xmlns:tools']) {
+        androidManifest.manifest.$['xmlns:tools'] = "http://schemas.android.com/tools";
+      }
+      
+      // Add tools:replace
+      const existingReplace = app.$['tools:replace'] || "";
+      if (!existingReplace.includes("android:extractNativeLibs")) {
+         app.$['tools:replace'] = existingReplace ? existingReplace + ",android:extractNativeLibs" : "android:extractNativeLibs";
+      }
+    }
+    return config;
+  });
+};
 //npx expo export --platform web
 
 module.exports = {
@@ -16,7 +38,7 @@ module.exports = {
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.groomzy.mybarberapp",
-      buildNumber: "13",
+      buildNumber: "21",
       infoPlist: {
         NSLocationWhenInUseUsageDescription: "This app needs your location to show nearby services",
         NSCameraUsageDescription: "MyBarber needs camera access so you can try on hairstyles and upload photos.",
@@ -27,6 +49,7 @@ module.exports = {
       image: "./assets/images/icon.png",
       resizeMode: "contain",
       backgroundColor: "#ffffff"
+    
     },
     "web": {
       "bundler": "metro",
@@ -45,7 +68,10 @@ module.exports = {
         "expo-build-properties",
         {
           android: {
-            targetSdkVersion: 35
+            ndkVersion: "27.1.12297006",
+            compileSdkVersion: 36,
+            targetSdkVersion: 36,
+            useLegacyPackaging: false
           }
         }
       ],
@@ -57,13 +83,14 @@ module.exports = {
         }
       ],
       // ✅ Add autoVerify plugin here
-      withAutoVerify
+      withAutoVerify,
+      withExtractNativeLibsFalse
     ],
     experiments: {
       typedRoutes: true
     },
     android: {
-      versionCode: 13,
+      versionCode: 21,
       googleServicesFile: "./google-services.json",
       package: "com.groomzy.mybarberapp",
       permissions: [
