@@ -1,27 +1,6 @@
 const withAutoVerify = require('./withAutoVerify');
 const { withAndroidManifest } = require('@expo/config-plugins');
 
-const withExtractNativeLibsFalse = (config) => {
-  return withAndroidManifest(config, async (config) => {
-    const androidManifest = config.modResults;
-    if (androidManifest.manifest.application && androidManifest.manifest.application[0]) {
-      const app = androidManifest.manifest.application[0];
-      app.$['android:extractNativeLibs'] = "false";
-      
-      // Ensure the tools namespace exists
-      if (!androidManifest.manifest.$['xmlns:tools']) {
-        androidManifest.manifest.$['xmlns:tools'] = "http://schemas.android.com/tools";
-      }
-      
-      // Add tools:replace
-      const existingReplace = app.$['tools:replace'] || "";
-      if (!existingReplace.includes("android:extractNativeLibs")) {
-         app.$['tools:replace'] = existingReplace ? existingReplace + ",android:extractNativeLibs" : "android:extractNativeLibs";
-      }
-    }
-    return config;
-  });
-};
 //npx expo export --platform web
 
 module.exports = {
@@ -34,7 +13,7 @@ module.exports = {
     orientation: "portrait",
     icon: "./assets/images/appicon.png",
     userInterfaceStyle: "automatic",
-    newArchEnabled: true,
+    newArchEnabled: false,
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.groomzy.mybarberapp",
@@ -83,8 +62,7 @@ module.exports = {
         }
       ],
       // ✅ Add autoVerify plugin here
-      withAutoVerify,
-      withExtractNativeLibsFalse
+      withAutoVerify
     ],
     experiments: {
       typedRoutes: true

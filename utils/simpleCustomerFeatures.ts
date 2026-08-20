@@ -12,7 +12,7 @@ export type CustomerAppointment = {
   servicePrice?: number;
   totalPrice?: number;
   paymentStatus?: string;
-  paymentMethod?: string;
+  paymentMethod?: string;x
   barberNumber?: number;
   userName?: string;
   barberName?: string;

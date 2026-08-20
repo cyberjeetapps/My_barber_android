@@ -43,7 +43,7 @@ import {
 } from 'lucide-react-native';
 
 // 👉 Use your live backend URL
-const BACKEND_URL = 'https://payment.mybarber.co.in';
+const BACKEND_URL = 'https://my-barber-backend.onrender.com';
 
 export default function AdminOwnersList() {
   const router = useRouter();

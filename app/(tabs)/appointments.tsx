@@ -11,8 +11,7 @@ import { useAuth } from '@/context/auth';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import RazorpayCheckout from 'react-native-razorpay';
-import { openRazorpayCheckout } from '@/utils/razorpayCheckout';
+import { openCashfreeCheckout } from '@/utils/cashfreeCheckout';
 import { useLanguage } from '@/context/LanguageContext';
 import { toast } from '@/utils/toast';
 import { cancelAppointmentReminders } from '@/utils/appointmentReminders';
@@ -57,7 +56,7 @@ export default function AppointmentsScreen() {
   const [successMessage, setSuccessMessage] = useState('');
   const [bookingsPerSlot, setBookingsPerSlot] = useState<any>({});
   // const RAZORPAY_BACKEND_URL = 'https://mybarber.co.in';
-  const RAZORPAY_BACKEND_URL = 'https://payment.mybarber.co.in';
+  const RAZORPAY_BACKEND_URL = 'https://my-barber-backend.onrender.com';
 // Temporary test - use IP instead of domain
 // const RAZORPAY_BACKEND_URL = 'http://34.93.185.38:5000';
 // const RAZORPAY_BACKEND_URL = 'https://razorpay-backend-d0zt.onrender.com';
@@ -312,38 +311,15 @@ const handlePayment = async (appointment) => {
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
 
-    const { orderId, amount, currency, key } = await response.json();
-    console.log('Razorpay order created:', orderId);
+    const { orderId, paymentSessionId, amount, currency } = await response.json();
+    console.log('Cashfree order created:', orderId);
 
-    // 2️⃣ Configure Razorpay checkout options
-    const options = {
-      description: appointment.serviceDescription || 'Service Payment',
-      image: appointment.serviceImageUrl || 'https://via.placeholder.com/80',
-      currency,
-      key,
-      amount,
-      name: appointment.shopName || 'Barber Shop',
-      order_id: orderId,
-      prefill: {
-        contact: appointment.userPhone || '9999999999',
-        name: appointment.userName || 'Customer',
-        email: user.email || 'customer@example.com'
-      },
-      theme: { color: '#F37254' },
-      notes: {
-        appointment_id: appointment.id,
-        service: appointment.serviceName
-      }
-    };
-
-    console.log('Razorpay options:', options);
-
-    // 3️⃣ Open Razorpay checkout — works on native and web now, not just native
-    openRazorpayCheckout(options)
+    // 3️⃣ Open Cashfree checkout
+    openCashfreeCheckout(paymentSessionId, orderId)
       .then(async (data) => {
         console.log('Payment response:', data);
 
-        if (data.razorpay_payment_id) {
+        if (data.success) {
           // 4️⃣ Start verification process
           setVerifyingPayment(true);
           
@@ -352,9 +328,7 @@ const handlePayment = async (appointment) => {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                razorpay_order_id: data.razorpay_order_id,
-                razorpay_payment_id: data.razorpay_payment_id,
-                razorpay_signature: data.razorpay_signature
+                order_id: data.orderId
               })
             });
 
@@ -366,7 +340,7 @@ const handlePayment = async (appointment) => {
                 await updateDoc(doc(db, 'appointments', appointment.id), {
                   paymentStatus: 'paid',
                   paymentDate: new Date().toISOString(),
-                  razorpayPaymentId: data.razorpay_payment_id,
+                  razorpayPaymentId: result.paymentId,
                   paymentMethod: result.paymentMethod || 'online'
                 });
               } catch (firestoreError) {
@@ -425,43 +399,20 @@ const handleFamilyPayment = async (booking) => {
 
     if (!response.ok) throw new Error(`Server error: ${response.status}`);
 
-    const { orderId, amount, currency, key } = await response.json();
+    const { orderId, paymentSessionId, amount, currency } = await response.json();
 
-    const options = {
-      description: booking.serviceDescription,
-      image: booking.serviceImageUrl || 'https://via.placeholder.com/80',
-      currency,
-      key,
-      amount,
-      name: booking.shopName,
-      order_id: orderId,
-      prefill: {
-        contact: booking.userPhone || '9999999999',
-        name: booking.userName || 'Customer',
-        email: user.email || 'customer@example.com'
-      },
-      theme: { color: '#F37254' },
-      notes: {
-        booking_id: booking.id,
-        service: booking.serviceName,
-        family_size: booking.familySize
-      }
-    };
-
-    openRazorpayCheckout(options)
+    openCashfreeCheckout(paymentSessionId, orderId)
       .then(async (data) => {
         console.log('Family payment data:', data);
 
-        if (data.razorpay_payment_id) {
+        if (data.success) {
           setVerifyingPayment(true); // Add this line
           try {
             const verifyResponse = await fetch(`${RAZORPAY_BACKEND_URL}/verify-payment`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                razorpay_order_id: data.razorpay_order_id,
-                razorpay_payment_id: data.razorpay_payment_id,
-                razorpay_signature: data.razorpay_signature
+                order_id: data.orderId
               }),
             });
 
@@ -472,7 +423,7 @@ const handleFamilyPayment = async (booking) => {
                 await updateDoc(doc(db, 'familybookings', booking.id), {
                   paymentStatus: 'paid',
                   paymentDate: new Date().toISOString(),
-                  razorpayPaymentId: data.razorpay_payment_id,
+                  razorpayPaymentId: result.paymentId,
                   paymentMethod: result.paymentMethod || 'online'
                 });
               } catch (firestoreError) {
@@ -530,29 +481,9 @@ const handlePackagePayment = async (pkg) => {
 
     if (!response.ok) throw new Error(`Server error: ${response.status}`);
 
-    const { orderId, amount, currency, key } = await response.json();
+    const { orderId, paymentSessionId, amount, currency } = await response.json();
 
-    const options = {
-      description: pkg.packageDescription,
-      image: pkg.imageUrl || 'https://via.placeholder.com/80',
-      currency,
-      key,
-      amount,
-      name: pkg.shopName,
-      order_id: orderId,
-      prefill: {
-        contact: pkg.userPhone || '9999999999',
-        name: pkg.userName || 'Customer',
-        email: user.email || 'customer@example.com'
-      },
-      theme: { color: '#F37254' },
-      notes: {
-        package_id: pkg.id,
-        package_name: pkg.packageName
-      }
-    };
-
-    const paymentData = await openRazorpayCheckout(options);
+    const paymentData = await openCashfreeCheckout(paymentSessionId, orderId);
 
     // Start verification process
     setVerifyingPayment(true);
@@ -562,9 +493,7 @@ const handlePackagePayment = async (pkg) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          razorpay_order_id: paymentData.razorpay_order_id,
-          razorpay_payment_id: paymentData.razorpay_payment_id,
-          razorpay_signature: paymentData.razorpay_signature
+          order_id: paymentData.orderId
         }),
       });
 
@@ -575,7 +504,7 @@ const handlePackagePayment = async (pkg) => {
           await updateDoc(doc(db, 'package_purchases', pkg.id), {
             paymentStatus: 'paid',
             paymentDate: new Date().toISOString(),
-            razorpayPaymentId: paymentData.razorpay_payment_id,
+            razorpayPaymentId: result.paymentId,
             status: 'active',
             paymentMethod: result.paymentMethod || 'online'
           });

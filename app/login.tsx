@@ -87,22 +87,22 @@ export default function Signup() {
     };
   }, []);
 
-const safeStore = {
-  getItem: async (key: string) => {
-    if (Platform.OS === 'web') {
-      return localStorage.getItem(key);
-    } else {
-      return await SecureStore.getItemAsync(key);
-    }
-  },
-  setItem: async (key: string, value: string) => {
-    if (Platform.OS === 'web') {
-      localStorage.setItem(key, value);
-    } else {
-      await SecureStore.setItemAsync(key, value);
-    }
-  },
-};
+  const safeStore = {
+    getItem: async (key: string) => {
+      if (Platform.OS === 'web') {
+        return localStorage.getItem(key);
+      } else {
+        return await SecureStore.getItemAsync(key);
+      }
+    },
+    setItem: async (key: string, value: string) => {
+      if (Platform.OS === 'web') {
+        localStorage.setItem(key, value);
+      } else {
+        await SecureStore.setItemAsync(key, value);
+      }
+    },
+  };
 
   // Auto-scroll to input when keyboard appears
   useEffect(() => {
@@ -192,7 +192,7 @@ const safeStore = {
             } as any);
 
             // Register push token
-             await registerUserPushToken(user.uid);
+            await registerUserPushToken(user.uid);
 
             // Redirect to dashboard
             router.replace('/(tabs)');
@@ -254,11 +254,11 @@ const safeStore = {
 
       // Save persistent session to SecureStore
       await safeStore.setItem('user_session', JSON.stringify({
-          uid: user.uid,
-          phoneNumber: phoneNumber,
-          lastLogin: new Date().toISOString(),
-          isTestAccount: true,
-        })
+        uid: user.uid,
+        phoneNumber: phoneNumber,
+        lastLogin: new Date().toISOString(),
+        isTestAccount: true,
+      })
       );
 
       // Update auth context and redirect
@@ -290,14 +290,14 @@ const safeStore = {
       setError('Please fill in all fields');
       return false;
     }
-    
+
     // Validate phone number format
     const phoneRegex = /^[\+]?[0-9]{10,15}$/;
     if (!phoneRegex.test(formData.phoneNumber.replace(/\s/g, ''))) {
       setPhoneError('Please enter a valid phone number');
       return false;
     }
-    
+
     return true;
   };
 
@@ -696,7 +696,7 @@ const safeStore = {
                 View full Terms — groomzytechnologies.co.in/terms
               </Text>
             </TouchableOpacity>
-            <Text style={{ color: Colors.textLight, fontSize: 14, lineHeight: 22, fontFamily: 'Poppins-Regular' }}>
+            <Text style={{ color: Colors.textLight, fontSize: 14, lineHeight: 22, fontFamily: 'Poppins-Regular', marginBottom: 20 }}>
               1. Bookings are confirmed only once payment or a valid time slot reservation is completed.{"\n\n"}
               2. Please arrive on time; slots may be released after a short grace period if you are late.{"\n\n"}
               3. Cancellations or rescheduling should be done as early as possible so the slot can be offered to others.{"\n\n"}
@@ -706,22 +706,22 @@ const safeStore = {
               7. By booking, you consent to receive booking-related notifications via app, SMS and WhatsApp.{"\n\n"}
               For the complete, up-to-date Terms & Conditions, please see the link above.
             </Text>
+            <View style={{ paddingVertical: 20, paddingBottom: 40, borderTopWidth: 1, borderTopColor: '#2A2A2A' }}>
+              <TouchableOpacity
+                style={{ backgroundColor: Colors.primary, padding: 16, borderRadius: 12, alignItems: 'center' }}
+                onPress={() => {
+                  if (!agreedToTerms) {
+                    setAgreedToTerms(true);
+                  }
+                  setShowTermsModal(false);
+                }}
+              >
+                <Text style={{ color: '#FFF', fontSize: 16, fontFamily: 'Poppins-SemiBold' }}>
+                  {!agreedToTerms ? 'I Agree' : 'Close'}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </ScrollView>
-          <View style={{ padding: 20, paddingBottom: 40, borderTopWidth: 1, borderTopColor: '#2A2A2A' }}>
-            <TouchableOpacity
-              style={{ backgroundColor: Colors.primary, padding: 16, borderRadius: 12, alignItems: 'center' }}
-              onPress={() => {
-                if (!agreedToTerms) {
-                  setAgreedToTerms(true);
-                }
-                setShowTermsModal(false);
-              }}
-            >
-              <Text style={{ color: '#FFF', fontSize: 16, fontFamily: 'Poppins-SemiBold' }}>
-                {!agreedToTerms ? 'I Agree' : 'Close'}
-              </Text>
-            </TouchableOpacity>
-          </View>
         </View>
       </Modal>
     </View>
@@ -748,11 +748,11 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   content: {
-    paddingVertical: 20,
+    paddingVertical: 40,
   },
   logoContainer: {
     alignItems: 'center',
-    marginBottom: -10,
+    marginBottom: -0,
     marginTop: -100,
   },
   title: {
