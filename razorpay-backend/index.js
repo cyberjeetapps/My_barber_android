@@ -173,15 +173,15 @@ app.post("/api/owners/create-owner", async (req, res) => {
 app.put("/api/owners/update-owner/:ownerId", async (req, res) => {
   try {
     const { ownerId } = req.params;
-    const { 
-      name, 
+    const {
+      name,
       phoneNumber,
       email,
-      bankAccountNumber, 
-      bankIfscCode, 
-      bankAccountHolderName, 
+      bankAccountNumber,
+      bankIfscCode,
+      bankAccountHolderName,
       bankAccountName,
-      adminToken 
+      adminToken
     } = req.body;
 
     // Verify admin token
@@ -312,7 +312,7 @@ app.get("/api/owners/test-admin", async (req, res) => {
   try {
     // Try to list users (first 5)
     const listUsersResult = await auth.listUsers(5);
-    
+
     // Try to access Firestore
     const ownersSnapshot = await db.collection('barberowner').limit(5).get();
     const ownersCount = ownersSnapshot.size;
@@ -402,17 +402,17 @@ app.post("/verify-payment", async (req, res) => {
 
   try {
     if (!order_id) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "Missing required payment parameters (order_id)" 
+      return res.status(400).json({
+        success: false,
+        message: "Missing required payment parameters (order_id)"
       });
-      }
+    }
 
     cashfreeInstance.PGOrderFetchPayments(order_id).then((response) => {
       const payments = response.data;
       if (!payments || payments.length === 0) {
-        return res.status(400).json({ 
-          success: false, 
+        return res.status(400).json({
+          success: false,
           message: "No payments found for this order"
         });
       }
@@ -421,7 +421,7 @@ app.post("/verify-payment", async (req, res) => {
       const successfulPayment = payments.find(p => p.payment_status === "SUCCESS");
 
       if (successfulPayment) {
-        return res.json({ 
+        return res.json({
           success: true,
           paymentId: successfulPayment.cf_payment_id,
           orderId: order_id,
@@ -431,26 +431,26 @@ app.post("/verify-payment", async (req, res) => {
         });
       } else {
         const lastPayment = payments[payments.length - 1];
-        return res.status(400).json({ 
-          success: false, 
+        return res.status(400).json({
+          success: false,
           message: `Payment status: ${lastPayment.payment_status}`,
           paymentStatus: lastPayment.payment_status
         });
       }
     }).catch((error) => {
       console.error("Payment verification fetch error:", error.response?.data || error.message);
-      res.status(500).json({ 
-        success: false, 
+      res.status(500).json({
+        success: false,
         message: "Payment verification failed",
-        error: error.response?.data?.message || error.message 
+        error: error.response?.data?.message || error.message
       });
     });
   } catch (error) {
     console.error("Payment verification error:", error);
-    res.status(500).json({ 
-      success: false, 
+    res.status(500).json({
+      success: false,
       message: "Payment verification failed",
-      error: error.message 
+      error: error.message
     });
   }
 });
@@ -463,8 +463,8 @@ app.post("/webhook", express.raw({ type: 'application/json' }), async (req, res)
 
 // Health check endpoint
 app.get("/health", (req, res) => {
-  res.json({ 
-    status: "OK", 
+  res.json({
+    status: "OK",
     timestamp: new Date().toISOString(),
     service: "backend",
     firebase: "connected",
@@ -475,7 +475,7 @@ app.get("/health", (req, res) => {
 // Error handling middleware
 app.use((error, req, res, next) => {
   console.error('Unhandled error:', error);
-  res.status(500).json({ 
+  res.status(500).json({
     message: "Internal server error",
     error: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong'
   });
