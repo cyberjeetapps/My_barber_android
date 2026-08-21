@@ -50,9 +50,11 @@ app.post("/api/owners/create-owner", async (req, res) => {
       try {
         await admin.auth().verifyIdToken(adminToken);
       } catch (error) {
+        console.error("Token verification failed (create-owner):", error);
         return res.status(401).json({
           success: false,
-          message: "Invalid admin token"
+          message: "Invalid admin token",
+          errorDetail: error.message
         });
       }
     }
@@ -189,9 +191,11 @@ app.put("/api/owners/update-owner/:ownerId", async (req, res) => {
       try {
         await admin.auth().verifyIdToken(adminToken);
       } catch (error) {
+        console.error("Token verification failed (update-owner):", error);
         return res.status(401).json({
           success: false,
-          message: "Invalid admin token"
+          message: "Invalid admin token",
+          errorDetail: error.message
         });
       }
     }
@@ -251,9 +255,11 @@ app.delete("/api/owners/delete-owner/:ownerId", async (req, res) => {
       try {
         await admin.auth().verifyIdToken(adminToken);
       } catch (error) {
+        console.error("Token verification failed (delete-owner):", error);
         return res.status(401).json({
           success: false,
-          message: "Invalid admin token"
+          message: "Invalid admin token",
+          errorDetail: error.message
         });
       }
     }
