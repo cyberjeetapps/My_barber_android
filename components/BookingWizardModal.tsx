@@ -32,6 +32,7 @@ interface BookingWizardModalProps {
   hasSelectedDateTime: boolean;
   totalAmount?: number;
   summaryFooterInfo?: { method: string, servicesText: string };
+  errorMessage?: string | null;
 }
 
 const STEPS = ['Barber', 'Date & Time', 'Services', 'Summary'];
@@ -55,6 +56,7 @@ export default function BookingWizardModal({
   hasSelectedDateTime,
   totalAmount,
   summaryFooterInfo,
+  errorMessage,
 }: BookingWizardModalProps) {
   const insets = useSafeAreaInsets();
   const [currentStep, setCurrentStep] = useState(0);
@@ -268,6 +270,13 @@ export default function BookingWizardModal({
               </View>
             </View>
           )}
+          {errorMessage ? (
+            <View style={{ backgroundColor: Colors.errorLight, padding: 10, borderRadius: 10, marginBottom: 12, borderWidth: 1, borderColor: `${Colors.error}40` }}>
+              <Text style={{ color: Colors.error, fontSize: 13, fontWeight: '500', textAlign: 'center' }}>
+                {errorMessage}
+              </Text>
+            </View>
+          ) : null}
           <TouchableOpacity
             style={[
               styles.continueButton,

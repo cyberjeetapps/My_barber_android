@@ -55,18 +55,18 @@ export default function AppointmentsScreen() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [bookingsPerSlot, setBookingsPerSlot] = useState<any>({});
-  // const RAZORPAY_BACKEND_URL = 'https://mybarber.co.in';
-  const RAZORPAY_BACKEND_URL = 'https://my-barber-backend.onrender.com';
-// Temporary test - use IP instead of domain
-// const RAZORPAY_BACKEND_URL = 'http://34.93.185.38:5000';
-// const RAZORPAY_BACKEND_URL = 'https://razorpay-backend-d0zt.onrender.com';
-// Review state
+  // const RAZORPAY_BACKEND_URL = 'http://localhost:5000';
+  const RAZORPAY_BACKEND_URL = 'https://backend.vps.mybarber.co.in';
+  // Temporary test - use IP instead of domain
+  // const RAZORPAY_BACKEND_URL = 'http://34.93.185.38:5000';
+  // const RAZORPAY_BACKEND_URL = 'https://razorpay-backend-d0zt.onrender.com';
+  // Review state
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [reviewAppointment, setReviewAppointment] = useState<any>(null);
   const [reviewText, setReviewText] = useState('');
   const [rating, setRating] = useState(0);
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
-  
+
   // Payment state
   const [paymentProcessing, setPaymentProcessing] = useState(false);
   const [verifyingPayment, setVerifyingPayment] = useState(false); // Add this line
@@ -204,7 +204,7 @@ export default function AppointmentsScreen() {
           translate('Family Bookings'),
           translate('No family bookings'),
         ]);
-        
+
         setUiTexts(prev => ({
           ...prev,
           appointmentsTitle: translated[0],
@@ -255,285 +255,285 @@ export default function AppointmentsScreen() {
   }, [language]);
 
   // Enhanced error handling for UPI payments
-// Payment error handler
-const handlePaymentError = (error) => {
-  console.error('Payment Error Details:', error);
+  // Payment error handler
+  const handlePaymentError = (error) => {
+    console.error('Payment Error Details:', error);
 
-  let devErrorMessage = `Code: ${error.code || 'N/A'}\nDescription: ${error.description || error.message || 'Unknown error'}`;
+    let devErrorMessage = `Code: ${error.code || 'N/A'}\nDescription: ${error.description || error.message || 'Unknown error'}`;
 
-  switch (error.code) {
-    case 'NETWORK_ERROR':
-      toast.error('Network error', 'Please check your internet connection.');
-      break;
-    case 'BAD_REQUEST_ERROR':
-      toast.error('Invalid details', 'Please check your payment details and try again.');
-      break;
-    case 'UPI_APP_NOT_INSTALLED':
-      toast.error('UPI app required', 'Please install a UPI app like Google Pay, PhonePe, or Paytm.');
-      break;
-    case 'PAYMENT_CANCELLED':
-      console.log('Payment cancelled by user', 'Payment was cancelled. You can try again anytime.');
-      break;
-    default:
-      toast.error('Payment failed', 'Payment was cancelled. You can try again anytime.');
-  }
-};
-
-const handlePayment = async (appointment) => {
-  if (paymentProcessing || verifyingPayment) return;
-  if (!user) return;
-  setPaymentProcessing(true);
-
-  try {
-    console.log('Starting payment for appointment:', appointment.id);
-
-    // 1️⃣ Create Razorpay order on backend
-    const response = await fetch(`${RAZORPAY_BACKEND_URL}/create-order`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json'
-      },
-      body: JSON.stringify({
-        amount: appointment.totalPrice ?? appointment.servicePrice,
-        currency: 'INR',
-        receipt: `rcptid_${appointment.id}`,
-        notes: {
-          appointment_id: appointment.id,
-          service: appointment.serviceName,
-          user_id: user.uid
-        }
-      })
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Server error: ${response.status} - ${errorText}`);
+    switch (error.code) {
+      case 'NETWORK_ERROR':
+        toast.error('Network error', 'Please check your internet connection.');
+        break;
+      case 'BAD_REQUEST_ERROR':
+        toast.error('Invalid details', 'Please check your payment details and try again.');
+        break;
+      case 'UPI_APP_NOT_INSTALLED':
+        toast.error('UPI app required', 'Please install a UPI app like Google Pay, PhonePe, or Paytm.');
+        break;
+      case 'PAYMENT_CANCELLED':
+        console.log('Payment cancelled by user', 'Payment was cancelled. You can try again anytime.');
+        break;
+      default:
+        toast.error('Payment failed', 'Payment was cancelled. You can try again anytime.');
     }
+  };
 
-    const { orderId, paymentSessionId, amount, currency } = await response.json();
-    console.log('Cashfree order created:', orderId);
+  const handlePayment = async (appointment) => {
+    if (paymentProcessing || verifyingPayment) return;
+    if (!user) return;
+    setPaymentProcessing(true);
 
-    // 3️⃣ Open Cashfree checkout
-    openCashfreeCheckout(paymentSessionId, orderId)
-      .then(async (data) => {
-        console.log('Payment response:', data);
-
-        if (data.success) {
-          // 4️⃣ Start verification process
-          setVerifyingPayment(true);
-          
-          try {
-            const verifyResponse = await fetch(`${RAZORPAY_BACKEND_URL}/verify-payment`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                order_id: data.orderId
-              })
-            });
-
-            const result = await verifyResponse.json();
-
-            if (result.success) {
-              // 5️⃣ Update Firestore
-              try {
-                await updateDoc(doc(db, 'appointments', appointment.id), {
-                  paymentStatus: 'paid',
-                  paymentDate: new Date().toISOString(),
-                  razorpayPaymentId: result.paymentId,
-                  paymentMethod: result.paymentMethod || 'online'
-                });
-              } catch (firestoreError) {
-                console.error('Firestore update failed:', firestoreError);
-              }
-
-              setSuccessMessage('Payment successful!');
-              setShowSuccess(true);
-              fetchAppointments();
-
-              setTimeout(() => setShowSuccess(false), 3000);
-            } else {
-              toast.error('Verification failed', 'Payment could not be verified. Please contact support.');
-            }
-          } catch (verifyError) {
-            console.error('Payment verification error:', verifyError);
-            toast.error('Verification error', 'Failed to verify payment. Please check your payment status.');
-          } finally {
-            setVerifyingPayment(false);
-          }
-        } else {
-          console.log('Payment cancelled by user or failed:', data);
-        }
-      })
-      .catch(handlePaymentError);
-
-  } catch (error: any) {
-    console.error('Payment initiation error:', error);
-    toast.error('Error', error.message || 'Failed to initiate payment. Please try again.');
-  } finally {
-    setPaymentProcessing(false);
-  }
-};
-
-const handleFamilyPayment = async (booking) => {
-  if (paymentProcessing || verifyingPayment) return; // Add verifyingPayment check
-  if (!user) return;
-  setPaymentProcessing(true);
-
-  try {
-    const response = await fetch(`${RAZORPAY_BACKEND_URL}/create-order`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        amount: booking.totalPrice,
-        currency: 'INR',
-        receipt: `rcptid_family_${booking.id}`,
-        notes: {
-          booking_id: booking.id,
-          service: booking.serviceName,
-          user_id: user.uid,
-          family_size: booking.familySize
-        }
-      })
-    });
-
-    if (!response.ok) throw new Error(`Server error: ${response.status}`);
-
-    const { orderId, paymentSessionId, amount, currency } = await response.json();
-
-    openCashfreeCheckout(paymentSessionId, orderId)
-      .then(async (data) => {
-        console.log('Family payment data:', data);
-
-        if (data.success) {
-          setVerifyingPayment(true); // Add this line
-          try {
-            const verifyResponse = await fetch(`${RAZORPAY_BACKEND_URL}/verify-payment`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                order_id: data.orderId
-              }),
-            });
-
-            const result = await verifyResponse.json();
-
-            if (result.success) {
-              try {
-                await updateDoc(doc(db, 'familybookings', booking.id), {
-                  paymentStatus: 'paid',
-                  paymentDate: new Date().toISOString(),
-                  razorpayPaymentId: result.paymentId,
-                  paymentMethod: result.paymentMethod || 'online'
-                });
-              } catch (firestoreError) {
-                console.error('Firestore update failed:', firestoreError);
-              }
-
-              setSuccessMessage('Payment successful!');
-              setShowSuccess(true);
-              fetchAppointments();
-
-              setTimeout(() => setShowSuccess(false), 3000);
-            } else {
-              toast.error('Verification failed', 'Payment could not be verified.');
-            }
-          } catch (error) {
-            console.error('Family payment verification error:', error);
-            toast.error('Verification error', 'Failed to verify payment.');
-          } finally {
-            setVerifyingPayment(false); // Add this line
-          }
-        }
-      })
-      .catch(handlePaymentError);
-
-  } catch (error) {
-    console.error('Family payment initiation failed:', error);
-    toast.error('Error', 'Failed to initiate payment. Please try again.');
-  } finally {
-    setPaymentProcessing(false);
-  }
-};
-
-
-const handlePackagePayment = async (pkg) => {
-  if (paymentProcessing || verifyingPayment) return; // Add verifyingPayment check
-  if (!user) return;
-
-  setPaymentProcessing(true);
-
-  try {
-    const response = await fetch(`${RAZORPAY_BACKEND_URL}/create-order`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        amount: pkg.price,
-        currency: 'INR',
-        receipt: `rcptid_package_${pkg.id}`,
-        notes: {
-          package_id: pkg.id,
-          package_name: pkg.packageName,
-          user_id: user.uid
-        }
-      })
-    });
-
-    if (!response.ok) throw new Error(`Server error: ${response.status}`);
-
-    const { orderId, paymentSessionId, amount, currency } = await response.json();
-
-    const paymentData = await openCashfreeCheckout(paymentSessionId, orderId);
-
-    // Start verification process
-    setVerifyingPayment(true);
-    
     try {
-      const verifyResponse = await fetch(`${RAZORPAY_BACKEND_URL}/verify-payment`, {
+      console.log('Starting payment for appointment:', appointment.id);
+
+
+      const response = await fetch(`${RAZORPAY_BACKEND_URL}/create-order`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json'
+        },
+        body: JSON.stringify({
+          amount: appointment.totalPrice ?? appointment.servicePrice,
+          currency: 'INR',
+          receipt: `rcptid_${appointment.id}`,
+          notes: {
+            appointment_id: appointment.id,
+            service: appointment.serviceName,
+            user_id: user.uid
+          }
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Server error: ${response.status} - ${errorText}`);
+      }
+
+      const { orderId, paymentSessionId, amount, currency } = await response.json();
+      console.log('Cashfree order created:', orderId);
+
+      // 3️⃣ Open Cashfree checkout
+      openCashfreeCheckout(paymentSessionId, orderId)
+        .then(async (data) => {
+          console.log('Payment response:', data);
+
+          if (data.success) {
+            // 4️⃣ Start verification process
+            setVerifyingPayment(true);
+
+            try {
+              const verifyResponse = await fetch(`${RAZORPAY_BACKEND_URL}/verify-payment`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  order_id: data.orderId
+                })
+              });
+
+              const result = await verifyResponse.json();
+
+              if (result.success) {
+                // 5️⃣ Update Firestore
+                try {
+                  await updateDoc(doc(db, 'appointments', appointment.id), {
+                    paymentStatus: 'paid',
+                    paymentDate: new Date().toISOString(),
+                    razorpayPaymentId: result.paymentId,
+                    paymentMethod: result.paymentMethod || 'online'
+                  });
+                } catch (firestoreError) {
+                  console.error('Firestore update failed:', firestoreError);
+                }
+
+                setSuccessMessage('Payment successful!');
+                setShowSuccess(true);
+                fetchAppointments();
+
+                setTimeout(() => setShowSuccess(false), 3000);
+              } else {
+                toast.error('Verification failed', 'Payment could not be verified. Please contact support.');
+              }
+            } catch (verifyError) {
+              console.error('Payment verification error:', verifyError);
+              toast.error('Verification error', 'Failed to verify payment. Please check your payment status.');
+            } finally {
+              setVerifyingPayment(false);
+            }
+          } else {
+            console.log('Payment cancelled by user or failed:', data);
+          }
+        })
+        .catch(handlePaymentError);
+
+    } catch (error: any) {
+      console.error('Payment initiation error:', error);
+      toast.error('Error', error.message || 'Failed to initiate payment. Please try again.');
+    } finally {
+      setPaymentProcessing(false);
+    }
+  };
+
+  const handleFamilyPayment = async (booking) => {
+    if (paymentProcessing || verifyingPayment) return; // Add verifyingPayment check
+    if (!user) return;
+    setPaymentProcessing(true);
+
+    try {
+      const response = await fetch(`${RAZORPAY_BACKEND_URL}/create-order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          order_id: paymentData.orderId
-        }),
+          amount: booking.totalPrice,
+          currency: 'INR',
+          receipt: `rcptid_family_${booking.id}`,
+          notes: {
+            booking_id: booking.id,
+            service: booking.serviceName,
+            user_id: user.uid,
+            family_size: booking.familySize
+          }
+        })
       });
 
-      const result = await verifyResponse.json();
+      if (!response.ok) throw new Error(`Server error: ${response.status}`);
 
-      if (result.success) {
-        try {
-          await updateDoc(doc(db, 'package_purchases', pkg.id), {
-            paymentStatus: 'paid',
-            paymentDate: new Date().toISOString(),
-            razorpayPaymentId: result.paymentId,
-            status: 'active',
-            paymentMethod: result.paymentMethod || 'online'
-          });
-        } catch (firestoreError) {
-          console.error('Firestore update failed:', firestoreError);
-        }
+      const { orderId, paymentSessionId, amount, currency } = await response.json();
 
-        setSuccessMessage('Payment successful!');
-        setShowSuccess(true);
-        fetchAppointments();
+      openCashfreeCheckout(paymentSessionId, orderId)
+        .then(async (data) => {
+          console.log('Family payment data:', data);
 
-        setTimeout(() => setShowSuccess(false), 3000);
-      } else {
-        toast.error('Verification failed', 'Payment could not be verified.');
-      }
-    } catch (verifyError) {
-      console.error('Package payment verification error:', verifyError);
-      toast.error('Verification error', 'Failed to verify payment. Please check your payment status.');
+          if (data.success) {
+            setVerifyingPayment(true); // Add this line
+            try {
+              const verifyResponse = await fetch(`${RAZORPAY_BACKEND_URL}/verify-payment`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  order_id: data.orderId
+                }),
+              });
+
+              const result = await verifyResponse.json();
+
+              if (result.success) {
+                try {
+                  await updateDoc(doc(db, 'familybookings', booking.id), {
+                    paymentStatus: 'paid',
+                    paymentDate: new Date().toISOString(),
+                    razorpayPaymentId: result.paymentId,
+                    paymentMethod: result.paymentMethod || 'online'
+                  });
+                } catch (firestoreError) {
+                  console.error('Firestore update failed:', firestoreError);
+                }
+
+                setSuccessMessage('Payment successful!');
+                setShowSuccess(true);
+                fetchAppointments();
+
+                setTimeout(() => setShowSuccess(false), 3000);
+              } else {
+                toast.error('Verification failed', 'Payment could not be verified.');
+              }
+            } catch (error) {
+              console.error('Family payment verification error:', error);
+              toast.error('Verification error', 'Failed to verify payment.');
+            } finally {
+              setVerifyingPayment(false); // Add this line
+            }
+          }
+        })
+        .catch(handlePaymentError);
+
+    } catch (error) {
+      console.error('Family payment initiation failed:', error);
+      toast.error('Error', 'Failed to initiate payment. Please try again.');
     } finally {
-      setVerifyingPayment(false);
+      setPaymentProcessing(false);
     }
+  };
 
-  } catch (error) {
-    console.error('Package Payment Error:', error);
-    handlePaymentError(error);
-  } finally {
-    setPaymentProcessing(false);
-  }
-};
+
+  const handlePackagePayment = async (pkg) => {
+    if (paymentProcessing || verifyingPayment) return; // Add verifyingPayment check
+    if (!user) return;
+
+    setPaymentProcessing(true);
+
+    try {
+      const response = await fetch(`${RAZORPAY_BACKEND_URL}/create-order`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: pkg.price,
+          currency: 'INR',
+          receipt: `rcptid_package_${pkg.id}`,
+          notes: {
+            package_id: pkg.id,
+            package_name: pkg.packageName,
+            user_id: user.uid
+          }
+        })
+      });
+
+      if (!response.ok) throw new Error(`Server error: ${response.status}`);
+
+      const { orderId, paymentSessionId, amount, currency } = await response.json();
+
+      const paymentData = await openCashfreeCheckout(paymentSessionId, orderId);
+
+      // Start verification process
+      setVerifyingPayment(true);
+
+      try {
+        const verifyResponse = await fetch(`${RAZORPAY_BACKEND_URL}/verify-payment`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            order_id: paymentData.orderId
+          }),
+        });
+
+        const result = await verifyResponse.json();
+
+        if (result.success) {
+          try {
+            await updateDoc(doc(db, 'package_purchases', pkg.id), {
+              paymentStatus: 'paid',
+              paymentDate: new Date().toISOString(),
+              razorpayPaymentId: result.paymentId,
+              status: 'active',
+              paymentMethod: result.paymentMethod || 'online'
+            });
+          } catch (firestoreError) {
+            console.error('Firestore update failed:', firestoreError);
+          }
+
+          setSuccessMessage('Payment successful!');
+          setShowSuccess(true);
+          fetchAppointments();
+
+          setTimeout(() => setShowSuccess(false), 3000);
+        } else {
+          toast.error('Verification failed', 'Payment could not be verified.');
+        }
+      } catch (verifyError) {
+        console.error('Package payment verification error:', verifyError);
+        toast.error('Verification error', 'Failed to verify payment. Please check your payment status.');
+      } finally {
+        setVerifyingPayment(false);
+      }
+
+    } catch (error) {
+      console.error('Package Payment Error:', error);
+      handlePaymentError(error);
+    } finally {
+      setPaymentProcessing(false);
+    }
+  };
 
   const handleOpenReview = (appointment) => {
     setReviewAppointment(appointment);
@@ -586,126 +586,130 @@ const handlePackagePayment = async (pkg) => {
     }
   };
 
-const renderPackage = (pkg, index, isUpcoming = false, isPast = false) => {
-  const packageName = language === 'en' ? pkg.packageName : pkg.languagePackageName || pkg.packageName;
-  const packageDescription = language === 'en' ? pkg.packageDescription : pkg.languagePackageDescription || pkg.packageDescription;
-  const shopName = language === 'en' ? pkg.shopName : pkg.languageShopName || pkg.shopName;
-  const services = language === 'en' ? pkg.services : pkg.languageServices || pkg.services;
+  const renderPackage = (pkg, index, isUpcoming = false, isPast = false) => {
+    const packageName = language === 'en' ? pkg.packageName : pkg.languagePackageName || pkg.packageName;
+    const packageDescription = language === 'en' ? pkg.packageDescription : pkg.languagePackageDescription || pkg.packageDescription;
+    const shopName = language === 'en' ? pkg.shopName : pkg.languageShopName || pkg.shopName;
+    const services = language === 'en' ? pkg.services : pkg.languageServices || pkg.services;
 
-  const isPaid = pkg.paymentStatus === 'paid';
-  const isExpired = pkg.status === 'expired' || (pkg.expiryDate && new Date(pkg.expiryDate) < new Date());
+    const isPaid = pkg.paymentStatus === 'paid';
+    const isExpired = pkg.status === 'expired' || (pkg.expiryDate && new Date(pkg.expiryDate) < new Date());
 
-  return (
-    <Animated.View 
-      key={pkg.id}
-      entering={FadeInUp.delay(300 + (index * 100)).duration(500)}
-      style={[
-        styles.packageCard,
-        isPaid && !isExpired ? styles.paidPackageCard : styles.pendingPackageCard,
-        isExpired && styles.expiredPackageCard
-      ]}
-    >
-      <Image 
-        source={{ uri: pkg.imageUrl }} 
-        style={styles.barberImage} 
-        contentFit="cover"
-        transition={200}
-        cachePolicy="memory-disk"
-      />
-      
-      <View style={styles.appointmentContent}>
-        <View style={styles.appointmentHeader}>
-          <Text style={styles.serviceName}>{packageName}</Text>
+    return (
+      <Animated.View
+        key={pkg.id}
+        entering={FadeInUp.delay(300 + (index * 100)).duration(500)}
+        style={[
+          styles.packageCard,
+          isPaid && !isExpired ? styles.paidPackageCard : styles.pendingPackageCard,
+          isExpired && styles.expiredPackageCard
+        ]}
+      >
+        <Image
+          source={{ uri: pkg.imageUrl }}
+          style={styles.barberImage}
+          contentFit="cover"
+          transition={200}
+          cachePolicy="memory-disk"
+        />
+
+        <View style={styles.appointmentContent}>
+          <View style={styles.appointmentHeader}>
+            <Text style={styles.serviceName}>{packageName}</Text>
+          </View>
           {isPaid && (
-            <Text style={[styles.statusText1, { color: Colors.success }]}>
-              PAID
-            </Text>
+            <View style={styles.statusContainer}>
+              <View style={[styles.statusBadge, { backgroundColor: `${Colors.success}20` }]}>
+                <Text style={[styles.statusText, { color: Colors.success }]}>
+                  PAID
+                </Text>
+              </View>
+            </View>
           )}
-        </View>
-        
-        {shopName && (
+
+          {shopName && (
+            <View style={styles.detailRow}>
+              <View style={styles.detailItem}>
+                <ShoppingBag size={14} color={Colors.primary} />
+                <Text style={styles.detailText}>{shopName}</Text>
+              </View>
+            </View>
+          )}
+
           <View style={styles.detailRow}>
             <View style={styles.detailItem}>
-              <ShoppingBag size={14} color={Colors.primary} />
-              <Text style={styles.detailText}>{shopName}</Text>
+              <Calendar size={14} color={Colors.primary} />
+              <Text style={styles.detailText}>
+                {uiTexts.purchased} {new Date(pkg.purchaseDate).toLocaleDateString()}
+              </Text>
             </View>
           </View>
-        )}
-        
-        <View style={styles.detailRow}>
+
           <View style={styles.detailItem}>
-            <Calendar size={14} color={Colors.primary} />
+            <Text style={styles.priceText}>₹{pkg.price}</Text>
+          </View>
+
+          <View style={styles.detailRow}>
             <Text style={styles.detailText}>
-              {uiTexts.purchased} {new Date(pkg.purchaseDate).toLocaleDateString()}
+              {packageDescription || 'Premium service package'}
             </Text>
           </View>
-        </View>
-        
-        <View style={styles.detailItem}>
-          <Text style={styles.priceText}>₹{pkg.price}</Text>
-        </View>
-        
-        <View style={styles.detailRow}>
-          <Text style={styles.detailText}>
-            {packageDescription || 'Premium service package'}
-          </Text>
-        </View>
 
-        <View style={styles.servicesContainer}>
-          <Text style={styles.servicesTitle}>{uiTexts.includes}</Text>
-          {services?.map((service, i) => (
-            <View key={i} style={styles.serviceItem}>
-              <Text style={styles.serviceText}>• {service}</Text>
+          <View style={styles.servicesContainer}>
+            <Text style={styles.servicesTitle}>{uiTexts.includes}</Text>
+            {services?.map((service, i) => (
+              <View key={i} style={styles.serviceItem}>
+                <Text style={styles.serviceText}>• {service}</Text>
+              </View>
+            ))}
+          </View>
+
+          <View>
+            {isExpired && (
+              <View style={[styles.statusBadge, { backgroundColor: `${Colors.error}20` }]}>
+                <Text style={[styles.statusText, { color: Colors.error }]}>
+                  EXPIRED
+                </Text>
+              </View>
+            )}
+
+            {isPaid && !isExpired && (
+              <View style={[styles.statusBadge, { backgroundColor: `${Colors.success}20` }]}>
+                <Text style={[styles.statusText, { color: Colors.success }]}>
+                  ACTIVE
+                </Text>
+              </View>
+            )}
+          </View>
+
+
+          {!isPaid && !isExpired && (
+            <View style={styles.actionButtonsContainer}>
+              <TouchableOpacity
+                style={[styles.paymentButton1, (paymentProcessing || verifyingPayment) && styles.disabledButton]}
+                onPress={() => handlePackagePayment(pkg)}
+                disabled={paymentProcessing || verifyingPayment}
+              >
+                {paymentProcessing ? (
+                  <ActivityIndicator size="small" color="white" />
+                ) : verifyingPayment ? (
+                  <>
+                    <Text style={styles.paymentButtonText}>Verifying...</Text>
+                    <ActivityIndicator size="small" color="white" />
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.paymentButtonText}>Pay ₹{pkg.price}</Text>
+                    <CreditCard size={16} color="white" />
+                  </>
+                )}
+              </TouchableOpacity>
             </View>
-          ))}
+          )}
         </View>
-        
-      <View>
-  {isExpired && (
-    <View style={[styles.statusBadge, { backgroundColor: `${Colors.error}20` }]}>
-      <Text style={[styles.statusText, { color: Colors.error }]}>
-        EXPIRED
-      </Text>
-    </View>
-  )}
-
-  {isPaid && !isExpired && (
-    <View style={[styles.statusBadge, { backgroundColor: `${Colors.success}20` }]}>
-      <Text style={[styles.statusText, { color: Colors.success }]}>
-        ACTIVE
-      </Text>
-    </View>
-  )}
-</View>
-
-
-       {!isPaid && !isExpired && (
-  <View style={styles.actionButtonsContainer}>
-    <TouchableOpacity 
-      style={[styles.paymentButton1, (paymentProcessing || verifyingPayment) && styles.disabledButton]}
-      onPress={() => handlePackagePayment(pkg)}
-      disabled={paymentProcessing || verifyingPayment}
-    >
-      {paymentProcessing ? (
-        <ActivityIndicator size="small" color="white" />
-      ) : verifyingPayment ? (
-        <>
-          <Text style={styles.paymentButtonText}>Verifying...</Text>
-          <ActivityIndicator size="small" color="white" />
-        </>
-      ) : (
-        <>
-          <Text style={styles.paymentButtonText}>Pay ₹{pkg.price}</Text>
-          <CreditCard size={16} color="white" />
-        </>
-      )}
-    </TouchableOpacity>
-  </View>
-)}
-      </View>
-    </Animated.View>
-  );
-};
+      </Animated.View>
+    );
+  };
   // const renderFamilyBooking = (booking, index, isUpcoming = false) => {
   //   const serviceName = language === 'en' ? booking.serviceName : booking.languageServiceName || booking.serviceName;
   //   const shopName = language === 'en' ? booking.shopName : booking.languageShopName || booking.shopName;
@@ -724,11 +728,11 @@ const renderPackage = (pkg, index, isUpcoming = false, isPast = false) => {
   //         source={{ uri: booking.serviceImageUrl || 'https://via.placeholder.com/80' }} 
   //         style={styles.barberImage} 
   //       />
-        
+
   //       <View style={styles.appointmentContent}>
   //         <View style={styles.appointmentHeader}>
   //           <Text style={styles.serviceName}>{serviceName} (Family Booking)</Text>
-            
+
   //           <View style={styles.statusContainer}>
   //             {booking.paymentStatus === 'paid' && (
   //               <View style={[styles.statusBadge1, { backgroundColor: `${Colors.success}` }]}>
@@ -745,7 +749,7 @@ const renderPackage = (pkg, index, isUpcoming = false, isPast = false) => {
   //                 <X size={20} color={Colors.error} />
   //               </TouchableOpacity>
   //             )}
-              
+
   //             <View style={[
   //               styles.statusBadge,
   //               { backgroundColor: `${getStatusColor(booking.status)}20` }
@@ -759,7 +763,7 @@ const renderPackage = (pkg, index, isUpcoming = false, isPast = false) => {
   //             </View>
   //           </View>
   //         </View>
-                
+
   //         <View style={styles.appointmentDetails}>
   //           <View style={styles.detailRow}>
   //             <View style={styles.detailItem}>
@@ -772,7 +776,7 @@ const renderPackage = (pkg, index, isUpcoming = false, isPast = false) => {
   //                 })}
   //               </Text>
   //             </View>
-              
+
   //             <View style={styles.detailItem}>
   //               <Clock size={14} color={Colors.primary} />
   //               <Text style={styles.detailText}>
@@ -784,7 +788,7 @@ const renderPackage = (pkg, index, isUpcoming = false, isPast = false) => {
   //               </Text>
   //             </View>
   //           </View>
-            
+
   //           <View style={styles.detailRow}>
   //             <View style={styles.detailItem}>
   //               <MapPin size={14} color={Colors.primary} />
@@ -792,17 +796,17 @@ const renderPackage = (pkg, index, isUpcoming = false, isPast = false) => {
   //                 {shopName}
   //               </Text>
   //             </View>
-              
+
   //             <View style={styles.detailItem}>
   //               <Text style={styles.priceText}>₹{booking.totalPrice}</Text>
   //             </View>
   //           </View>
-            
+
   //           <View style={styles.detailRow}>
   //             <Text style={styles.detailText}>Family Size: {booking.familySize}</Text>
   //           </View>
   //         </View>
-          
+
   //         {isUpcoming && (
   //           <View style={styles.actionButtonsContainer}>
   //             {booking.paymentStatus !== 'paid' && (
@@ -814,7 +818,7 @@ const renderPackage = (pkg, index, isUpcoming = false, isPast = false) => {
   //                 <CreditCard size={16} color="white" />
   //               </TouchableOpacity>
   //             )}
-              
+
   //             <TouchableOpacity 
   //               style={[
   //                 styles.rescheduleButton,
@@ -841,7 +845,7 @@ const renderPackage = (pkg, index, isUpcoming = false, isPast = false) => {
   //     </Animated.View>
   //   );
   // };
- const renderAppointment = (appointment, index, isUpcoming = false) => {
+  const renderAppointment = (appointment, index, isUpcoming = false) => {
     // Handle packages in past appointments
     if (appointment.isPackage) {
       return renderPackage(appointment, index, false, true);
@@ -851,67 +855,66 @@ const renderPackage = (pkg, index, isUpcoming = false, isPast = false) => {
     const shopName = language === 'en' ? appointment.shopName : appointment.languageShopName || appointment.shopName;
 
     return (
-      <Animated.View 
-        key={appointment.id} 
+      <Animated.View
+        key={appointment.id}
         entering={FadeInUp.delay(300 + (index * 100)).duration(500)}
         onLayout={(e) => { highlightOffsets.current[appointment.id] = e.nativeEvent.layout.y; }}
         style={[
-          styles.appointmentCard, 
+          styles.appointmentCard,
           isUpcoming && styles.upcomingCard,
           appointment.status === 'completed' && styles.completedCard,
           appointment.isFamilyBooking && styles.familyCard,
           highlightId === appointment.id && styles.deepLinkedCard,
         ]}
       >
-        <Image 
-          source={{ uri: appointment.serviceImageUrl || 'https://via.placeholder.com/80' }} 
-          style={styles.barberImage} 
+        <Image
+          source={{ uri: appointment.serviceImageUrl || 'https://via.placeholder.com/80' }}
+          style={styles.barberImage}
           contentFit="cover"
           transition={200}
           cachePolicy="memory-disk"
         />
-        
+
         <View style={styles.appointmentContent}>
           <View style={styles.appointmentHeader}>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Text style={styles.serviceName}>{serviceName}</Text>
-            </View>
-            
-            <View style={styles.statusContainer}>
-              {appointment.paymentStatus === 'paid' && (
-                <View style={[styles.statusBadge, { backgroundColor: `${Colors.success}20` }]}>
-                  <Text style={[styles.statusText1, { color: Colors.success }]}>
-                    PAID
-                  </Text>
-                </View>
-              )}
-              {isUpcoming && appointment.status === 'pending' && (
-                <TouchableOpacity 
-                  style={styles.cancelButton} 
-                  onPress={() => 
-                    appointment.isFamilyBooking 
-                      ? handleDeleteFamilyBooking(appointment)
-                      : handleDelete(appointment)
-                  }
-                >
-                  <X size={20} color={Colors.error} />
-                </TouchableOpacity>
-              )}
-              
-              <View style={[
-                styles.statusBadge,
-                { backgroundColor: `${getStatusColor(appointment.status)}20` }
-              ]}>
-                <Text style={[
-                  styles.statusText,
-                  { color: getStatusColor(appointment.status) }
-                ]}>
-                  {appointment.status.toUpperCase()}
+            <Text style={styles.serviceName}>{serviceName}</Text>
+
+            {isUpcoming && appointment.status === 'pending' && (
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() =>
+                  appointment.isFamilyBooking
+                    ? handleDeleteFamilyBooking(appointment)
+                    : handleDelete(appointment)
+                }
+              >
+                <X size={16} color={Colors.error} />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <View style={styles.statusContainer}>
+            {appointment.paymentStatus === 'paid' && (
+              <View style={[styles.statusBadge, { backgroundColor: `${Colors.success}20` }]}>
+                <Text style={[styles.statusText, { color: Colors.success }]}>
+                  PAID
                 </Text>
               </View>
+            )}
+
+            <View style={[
+              styles.statusBadge,
+              { backgroundColor: `${getStatusColor(appointment.status)}20` }
+            ]}>
+              <Text style={[
+                styles.statusText,
+                { color: getStatusColor(appointment.status) }
+              ]}>
+                {appointment.status.toUpperCase()}
+              </Text>
             </View>
           </View>
-                
+
           <View style={styles.appointmentDetails}>
             <View style={styles.detailRow}>
               <View style={styles.detailItem}>
@@ -924,19 +927,19 @@ const renderPackage = (pkg, index, isUpcoming = false, isPast = false) => {
                   })}
                 </Text>
               </View>
-              
+
               <View style={styles.detailItem}>
                 <Clock size={14} color={Colors.primary} />
                 <Text style={styles.detailText}>
-                  {appointment.dateTime.toLocaleTimeString([], { 
-                    hour: '2-digit', 
+                  {appointment.dateTime.toLocaleTimeString([], {
+                    hour: '2-digit',
                     minute: '2-digit',
-                    hour12: true 
+                    hour12: true
                   })}
                 </Text>
               </View>
             </View>
-            
+
             <View style={styles.detailRow}>
               <View style={styles.detailItem}>
                 <MapPin size={14} color={Colors.primary} />
@@ -945,12 +948,12 @@ const renderPackage = (pkg, index, isUpcoming = false, isPast = false) => {
                 </Text>
               </View>
             </View>
-             <View style={styles.detailItem}>
-                <Text style={styles.priceText}>
-                  ₹{appointment.totalPrice ?? appointment.servicePrice}
-                </Text>
-              </View>
-            
+            <View style={styles.detailItem}>
+              <Text style={styles.priceText}>
+                ₹{appointment.totalPrice ?? appointment.servicePrice}
+              </Text>
+            </View>
+
             {appointment.isFamilyBooking && (
               <View style={styles.detailRow}>
                 <Text style={styles.detailText}>Family Size: {appointment.familySize}</Text>
@@ -964,58 +967,58 @@ const renderPackage = (pkg, index, isUpcoming = false, isPast = false) => {
               </View>
             )}
           </View>
-          
-      {isUpcoming && (
-  <View style={styles.actionButtonsContainer}>
-    {/* Only show payment button if payment method is online and status is pending */}
-    {appointment.paymentStatus !== 'paid' && appointment.paymentMethod === 'online' && (
-      <TouchableOpacity 
-        style={[styles.paymentButton, (paymentProcessing || verifyingPayment) && styles.disabledButton]}
-        onPress={() => 
-          appointment.isFamilyBooking 
-            ? handleFamilyPayment(appointment)
-            : handlePayment(appointment)
-        }
-        disabled={paymentProcessing || verifyingPayment}
-      >
-        {paymentProcessing ? (
-          <ActivityIndicator size="small" color="white" />
-        ) : verifyingPayment ? (
-          <>
-            <Text style={styles.paymentButtonText}>Verifying...</Text>
-            <ActivityIndicator size="small" color="white" />
-          </>
-        ) : (
-          <>
-            <Text style={styles.paymentButtonText}>
-              Pay ₹{appointment.totalPrice ?? appointment.servicePrice}
-            </Text>
-            <CreditCard size={16} color="white" />
-          </>
-        )}
-      </TouchableOpacity>
-    )}
-    
-    {/* Always show reschedule button for upcoming appointments */}
-    <TouchableOpacity 
-      style={[
-        styles.rescheduleButton,
-        (appointment.paymentStatus === 'paid' || appointment.paymentMethod === 'cash') && { marginLeft: 0 }
-      ]} 
-      onPress={() => 
-        appointment.isFamilyBooking 
-          ? handleRescheduleFamilyBooking(appointment)
-          : handleReschedule(appointment)
-      }
-    >
-      <Text style={styles.rescheduleText}>{uiTexts.rescheduleButton}</Text>
-      <ChevronRight size={16} color="white" />
-    </TouchableOpacity>
-  </View>
-)}
+
+          {isUpcoming && (
+            <View style={styles.actionButtonsContainer}>
+              {/* Only show payment button if payment method is online and status is pending */}
+              {appointment.paymentStatus !== 'paid' && appointment.paymentMethod === 'online' && (
+                <TouchableOpacity
+                  style={[styles.paymentButton, (paymentProcessing || verifyingPayment) && styles.disabledButton]}
+                  onPress={() =>
+                    appointment.isFamilyBooking
+                      ? handleFamilyPayment(appointment)
+                      : handlePayment(appointment)
+                  }
+                  disabled={paymentProcessing || verifyingPayment}
+                >
+                  {paymentProcessing ? (
+                    <ActivityIndicator size="small" color="white" />
+                  ) : verifyingPayment ? (
+                    <>
+                      <Text style={styles.paymentButtonText}>Verifying...</Text>
+                      <ActivityIndicator size="small" color="white" />
+                    </>
+                  ) : (
+                    <>
+                      <Text style={styles.paymentButtonText}>
+                        Pay ₹{appointment.totalPrice ?? appointment.servicePrice}
+                      </Text>
+                      <CreditCard size={16} color="white" />
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
+
+              {/* Always show reschedule button for upcoming appointments */}
+              <TouchableOpacity
+                style={[
+                  styles.rescheduleButton,
+                  (appointment.paymentStatus === 'paid' || appointment.paymentMethod === 'cash') && { marginLeft: 0 }
+                ]}
+                onPress={() =>
+                  appointment.isFamilyBooking
+                    ? handleRescheduleFamilyBooking(appointment)
+                    : handleReschedule(appointment)
+                }
+              >
+                <Text style={styles.rescheduleText}>{uiTexts.rescheduleButton}</Text>
+                <ChevronRight size={16} color="white" />
+              </TouchableOpacity>
+            </View>
+          )}
           {!isUpcoming && appointment.status === 'completed' && !appointment.reviewed && (
-            <TouchableOpacity 
-              style={styles.reviewButton} 
+            <TouchableOpacity
+              style={styles.reviewButton}
               onPress={() => handleOpenReview(appointment)}
             >
               <Text style={styles.reviewButtonText}>{uiTexts.giveReview}</Text>
@@ -1088,154 +1091,154 @@ const renderPackage = (pkg, index, isUpcoming = false, isPast = false) => {
     }
   };
 
-const fetchAppointments = useCallback(async () => {
-  if (!user?.uid) {
-    console.log('No user logged in');
-    setUpcomingAppointments([]);
-    setPastAppointments([]);
-    setPurchasedPackages([]);
-    setLoading(false);
-    return;
-  }
+  const fetchAppointments = useCallback(async () => {
+    if (!user?.uid) {
+      console.log('No user logged in');
+      setUpcomingAppointments([]);
+      setPastAppointments([]);
+      setPurchasedPackages([]);
+      setLoading(false);
+      return;
+    }
 
-  setLoading(true);
-  setError('');
-  try {
-    // Fetch regular appointments
-    const appointmentsRef = collection(db, 'appointments');
-    const q = query(appointmentsRef, where('userId', '==', user.uid));
-    const querySnapshot = await getDocs(q);
-    
-    // Fetch family bookings
-    const familyBookingsRef = collection(db, 'familybookings');
-    const familyQuery = query(familyBookingsRef, where('userId', '==', user.uid));
-    const familySnapshot = await getDocs(familyQuery);
-    
-    // Fetch packages
-    const packagesRef = collection(db, 'package_purchases');
-    const packagesQuery = query(packagesRef, where('userId', '==', user.uid));
-    const packagesSnapshot = await getDocs(packagesQuery);
-    
-    const now = new Date();
-    const activePackages: any[] = [];
-    const expiredPackages: any[] = [];
+    setLoading(true);
+    setError('');
+    try {
+      // Fetch regular appointments
+      const appointmentsRef = collection(db, 'appointments');
+      const q = query(appointmentsRef, where('userId', '==', user.uid));
+      const querySnapshot = await getDocs(q);
 
-    packagesSnapshot.docs.forEach(doc => {
-      const pkg = {
+      // Fetch family bookings
+      const familyBookingsRef = collection(db, 'familybookings');
+      const familyQuery = query(familyBookingsRef, where('userId', '==', user.uid));
+      const familySnapshot = await getDocs(familyQuery);
+
+      // Fetch packages
+      const packagesRef = collection(db, 'package_purchases');
+      const packagesQuery = query(packagesRef, where('userId', '==', user.uid));
+      const packagesSnapshot = await getDocs(packagesQuery);
+
+      const now = new Date();
+      const activePackages: any[] = [];
+      const expiredPackages: any[] = [];
+
+      packagesSnapshot.docs.forEach(doc => {
+        const pkg = {
+          id: doc.id,
+          ...(doc.data() as any),
+          purchaseDate: new Date(doc.data().purchaseDate),
+          expiryDate: doc.data().expiryDate ? new Date(doc.data().expiryDate) : null
+        };
+
+        // Check if package is expired
+        if (pkg.expiryDate && pkg.expiryDate < now) {
+          expiredPackages.push(pkg);
+        } else {
+          activePackages.push(pkg);
+        }
+      });
+
+      // Update expired packages in Firestore if they're still marked as active
+      const updatePromises = expiredPackages
+        .filter(pkg => pkg.status === 'active')
+        .map(pkg =>
+          updateDoc(doc(db, 'package_purchases', pkg.id), {
+            status: 'expired',
+            updatedAt: new Date().toISOString()
+          })
+        );
+
+      await Promise.all(updatePromises);
+
+      // After updates, re-fetch packages to get the latest status
+      const updatedPackagesSnapshot = await getDocs(packagesQuery);
+      const updatedPackages = updatedPackagesSnapshot.docs.map(doc => ({
         id: doc.id,
         ...(doc.data() as any),
         purchaseDate: new Date(doc.data().purchaseDate),
         expiryDate: doc.data().expiryDate ? new Date(doc.data().expiryDate) : null
-      };
+      }));
 
-      // Check if package is expired
-      if (pkg.expiryDate && pkg.expiryDate < now) {
-        expiredPackages.push(pkg);
-      } else {
-        activePackages.push(pkg);
-      }
-    });
+      // Separate active and expired packages again after updates
+      const finalActivePackages: any[] = [];
+      const finalExpiredPackages: any[] = [];
 
-    // Update expired packages in Firestore if they're still marked as active
-    const updatePromises = expiredPackages
-      .filter(pkg => pkg.status === 'active')
-      .map(pkg => 
-        updateDoc(doc(db, 'package_purchases', pkg.id), {
-          status: 'expired',
-          updatedAt: new Date().toISOString()
-        })
-      );
-
-    await Promise.all(updatePromises);
-
-    // After updates, re-fetch packages to get the latest status
-    const updatedPackagesSnapshot = await getDocs(packagesQuery);
-    const updatedPackages = updatedPackagesSnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...(doc.data() as any),
-      purchaseDate: new Date(doc.data().purchaseDate),
-      expiryDate: doc.data().expiryDate ? new Date(doc.data().expiryDate) : null
-    }));
-
-    // Separate active and expired packages again after updates
-    const finalActivePackages: any[] = [];
-    const finalExpiredPackages: any[] = [];
-
-    updatedPackages.forEach(pkg => {
-      if (pkg.status === 'expired' || (pkg.expiryDate && pkg.expiryDate < now)) {
-        finalExpiredPackages.push(pkg);
-      } else {
-        finalActivePackages.push(pkg);
-      }
-    });
-
-    setPurchasedPackages(finalActivePackages);
-
-    // Process both types together
-    const upcoming: any[] = [];
-    const past: any[] = [];
-
-    // Process regular appointments
-    querySnapshot.docs.forEach(doc => {
-      const data: any = doc.data();
-      const appointment = {
-        id: doc.id,
-        ...data,
-        dateTime: data.dateTime ? new Date(data.dateTime) : null,
-        isFamilyBooking: false
-      };
-
-      if (appointment.status === 'completed' || appointment.status === 'cancelled') {
-        past.push(appointment);
-      } else if (appointment.dateTime && appointment.dateTime >= now) {
-        upcoming.push(appointment);
-      } else {
-        past.push(appointment);
-      }
-    });
-
-    // Process family bookings
-    familySnapshot.docs.forEach(doc => {
-      const data: any = doc.data();
-      const booking = {
-        id: doc.id,
-        ...data,
-        dateTime: data.dateTime ? new Date(data.dateTime) : null,
-        isFamilyBooking: true
-      };
-
-      if (booking.status === 'completed' || booking.status === 'cancelled') {
-        past.push(booking);
-      } else if (booking.dateTime && booking.dateTime >= now) {
-        upcoming.push(booking);
-      } else {
-        past.push(booking);
-      }
-    });
-
-    // Add expired packages to past appointments section
-    finalExpiredPackages.forEach(pkg => {
-      past.push({
-        ...pkg,
-        isPackage: true,
-        status: 'expired'
+      updatedPackages.forEach(pkg => {
+        if (pkg.status === 'expired' || (pkg.expiryDate && pkg.expiryDate < now)) {
+          finalExpiredPackages.push(pkg);
+        } else {
+          finalActivePackages.push(pkg);
+        }
       });
-    });
 
-    setUpcomingAppointments(upcoming.sort((a, b) => a.dateTime - b.dateTime));
-    setPastAppointments(past.sort((a, b) => {
-      const dateA = a.dateTime || a.purchaseDate || new Date(0);
-      const dateB = b.dateTime || b.purchaseDate || new Date(0);
-      return dateB - dateA;
-    }));
+      setPurchasedPackages(finalActivePackages);
 
-  } catch (err) {
-    console.error('Fetch error:', err);
-    setError('Failed to load data');
-  } finally {
-    setLoading(false);
-  }
-}, [user?.uid, language]);
+      // Process both types together
+      const upcoming: any[] = [];
+      const past: any[] = [];
+
+      // Process regular appointments
+      querySnapshot.docs.forEach(doc => {
+        const data: any = doc.data();
+        const appointment = {
+          id: doc.id,
+          ...data,
+          dateTime: data.dateTime ? new Date(data.dateTime) : null,
+          isFamilyBooking: false
+        };
+
+        if (appointment.status === 'completed' || appointment.status === 'cancelled') {
+          past.push(appointment);
+        } else if (appointment.dateTime && appointment.dateTime >= now) {
+          upcoming.push(appointment);
+        } else {
+          past.push(appointment);
+        }
+      });
+
+      // Process family bookings
+      familySnapshot.docs.forEach(doc => {
+        const data: any = doc.data();
+        const booking = {
+          id: doc.id,
+          ...data,
+          dateTime: data.dateTime ? new Date(data.dateTime) : null,
+          isFamilyBooking: true
+        };
+
+        if (booking.status === 'completed' || booking.status === 'cancelled') {
+          past.push(booking);
+        } else if (booking.dateTime && booking.dateTime >= now) {
+          upcoming.push(booking);
+        } else {
+          past.push(booking);
+        }
+      });
+
+      // Add expired packages to past appointments section
+      finalExpiredPackages.forEach(pkg => {
+        past.push({
+          ...pkg,
+          isPackage: true,
+          status: 'expired'
+        });
+      });
+
+      setUpcomingAppointments(upcoming.sort((a, b) => a.dateTime - b.dateTime));
+      setPastAppointments(past.sort((a, b) => {
+        const dateA = a.dateTime || a.purchaseDate || new Date(0);
+        const dateB = b.dateTime || b.purchaseDate || new Date(0);
+        return dateB - dateA;
+      }));
+
+    } catch (err) {
+      console.error('Fetch error:', err);
+      setError('Failed to load data');
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.uid, language]);
 
   const handleDelete = (appointment) => {
     Alert.alert(
@@ -1243,9 +1246,9 @@ const fetchAppointments = useCallback(async () => {
       uiTexts.deleteConfirm,
       [
         { text: uiTexts.cancel, style: 'cancel' },
-        { 
-          text: uiTexts.delete, 
-          style: 'destructive', 
+        {
+          text: uiTexts.delete,
+          style: 'destructive',
           onPress: async () => {
             try {
               await deleteDoc(doc(db, 'appointments', appointment.id));
@@ -1262,7 +1265,7 @@ const fetchAppointments = useCallback(async () => {
             } catch (error) {
               toast.error('Error', 'Failed to delete appointment');
             }
-          } 
+          }
         },
       ]
     );
@@ -1274,9 +1277,9 @@ const fetchAppointments = useCallback(async () => {
       uiTexts.deleteConfirm,
       [
         { text: uiTexts.cancel, style: 'cancel' },
-        { 
-          text: uiTexts.delete, 
-          style: 'destructive', 
+        {
+          text: uiTexts.delete,
+          style: 'destructive',
           onPress: async () => {
             try {
               await deleteDoc(doc(db, 'familybookings', booking.id));
@@ -1296,7 +1299,7 @@ const fetchAppointments = useCallback(async () => {
             } catch (error) {
               toast.error('Error', 'Failed to delete family booking');
             }
-          } 
+          }
         },
       ]
     );
@@ -1321,12 +1324,12 @@ const fetchAppointments = useCallback(async () => {
   const generateTimeSlots = () => {
     const slots: any[] = [];
     const serviceDuration = 30;
-    
+
     for (let hour = BUSINESS_HOURS.start; hour < BUSINESS_HOURS.end; hour++) {
       for (let minute = 0; minute < 60; minute += BUSINESS_HOURS.interval) {
         const time = new Date(rescheduleDate);
         time.setHours(hour, minute, 0, 0);
-        
+
         if (time > new Date()) {
           slots.push(time);
         }
@@ -1338,36 +1341,36 @@ const fetchAppointments = useCallback(async () => {
   const generateAvailableTimeSlots = async () => {
     try {
       const slots = generateTimeSlots();
-      
+
       const start = new Date(rescheduleDate);
       start.setHours(0, 0, 0, 0);
-      
+
       const end = new Date(rescheduleDate);
       end.setHours(23, 59, 59, 999);
-      
+
       const appointmentsRef = collection(db, 'appointments');
       const q = query(
         appointmentsRef,
         where('dateTime', '>=', start.toISOString()),
         where('dateTime', '<=', end.toISOString())
       );
-      
+
       const querySnapshot = await getDocs(q);
-      
+
       const bookingsCount = {};
       querySnapshot.docs.forEach(doc => {
         const slot = doc.data().dateTime;
         bookingsCount[slot] = (bookingsCount[slot] || 0) + 1;
       });
-      
+
       setBookingsPerSlot(bookingsCount);
-      
+
       const available = slots.filter(slot => {
         const slotKey = slot.toISOString();
-        return (bookingsCount[slotKey] || 0) < MAX_BARBERS || 
-              slotKey === selectedAppointment?.dateTime?.toISOString();
+        return (bookingsCount[slotKey] || 0) < MAX_BARBERS ||
+          slotKey === selectedAppointment?.dateTime?.toISOString();
       });
-      
+
       setAvailableTimeSlots(available);
     } catch (error) {
       console.error('Error fetching available slots:', error);
@@ -1543,8 +1546,8 @@ const fetchAppointments = useCallback(async () => {
     for (let i = 1; i <= 5; i++) {
       stars.push(
         <TouchableOpacity key={i} onPress={() => setRating(i)}>
-          <Star 
-            size={32} 
+          <Star
+            size={32}
             color={i <= rating ? Colors.primary : Colors.border}
             fill={i <= rating ? Colors.primary : 'transparent'}
           />
@@ -1605,7 +1608,7 @@ const fetchAppointments = useCallback(async () => {
           <Text style={styles.headerSubtitle}>{uiTexts.appointmentsSubtitle}</Text>
         </Animated.View>
 
-          <View style={styles.content}>
+        <View style={styles.content}>
           {loading ? (
             <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 20 }} />
           ) : error ? (
@@ -1617,7 +1620,7 @@ const fetchAppointments = useCallback(async () => {
                 <Text style={styles.sectionTitle}>{uiTexts.myPackages}</Text>
                 {purchasedPackages.length > 0 ? (
                   purchasedPackages.map((pkg, index) => renderPackage(pkg, index))
-                ) :  (
+                ) : (
                   <View style={styles.emptyContainer}>
                     <Text style={styles.emptyText}>{uiTexts.noPackages}</Text>
                     <TouchableOpacity
@@ -1629,13 +1632,13 @@ const fetchAppointments = useCallback(async () => {
                   </View>
                 )}
               </View>
- <View ref={upcomingRef} style={styles.section}>
+              <View ref={upcomingRef} style={styles.section}>
                 <Text style={styles.sectionTitle}>{uiTexts.upcomingAppointments}</Text>
                 {upcomingAppointments.length > 0 ? (
                   upcomingAppointments.map((appointment, index) =>
                     renderAppointment(appointment, index, true)
                   )
-                ) :  (
+                ) : (
                   <Animated.View
                     entering={FadeIn.delay(300).duration(500)}
                     style={styles.emptyContainer}
@@ -1674,7 +1677,7 @@ const fetchAppointments = useCallback(async () => {
                 </View>
               )}
 
-         <View style={styles.section}>
+              <View style={styles.section}>
                 <Text style={styles.sectionTitle}>{uiTexts.pastAppointments}</Text>
                 {pastAppointments.length > 0 ? (
                   pastAppointments.map((appointment, index) => renderAppointment(appointment, index))
@@ -1685,10 +1688,10 @@ const fetchAppointments = useCallback(async () => {
             </>
           )}
         </View>
-        
+
         <View style={styles.bottomPadding} />
       </ScrollView>
-      
+
       {/* Reschedule Modal */}
       <Modal
         visible={showRescheduleModal}
@@ -1764,7 +1767,7 @@ const fetchAppointments = useCallback(async () => {
                   const bookedCount = bookingsPerSlot[slotKey] || 0;
                   const availableSpots = MAX_BARBERS - bookedCount;
                   const isCurrentSlot = slotKey === selectedAppointment?.dateTime?.toISOString();
-                  
+
                   return (
                     <TouchableOpacity
                       key={index}
@@ -1798,15 +1801,15 @@ const fetchAppointments = useCallback(async () => {
 
             <TouchableOpacity
               style={[
-                styles.confirmButton, 
+                styles.confirmButton,
                 rescheduleLoading && styles.confirmButtonDisabled,
-                (!selectedTimeSlot || selectedTimeSlot.toISOString() === selectedAppointment?.dateTime?.toISOString()) && 
-                  styles.disabledButton
+                (!selectedTimeSlot || selectedTimeSlot.toISOString() === selectedAppointment?.dateTime?.toISOString()) &&
+                styles.disabledButton
               ]}
               onPress={handleSubmitReschedule}
               disabled={
-                rescheduleLoading || 
-                !selectedTimeSlot || 
+                rescheduleLoading ||
+                !selectedTimeSlot ||
                 selectedTimeSlot.toISOString() === selectedAppointment?.dateTime?.toISOString()
               }
             >
@@ -1892,7 +1895,7 @@ const fetchAppointments = useCallback(async () => {
           animationType="fade"
         >
           <View style={styles.successOverlay}>
-            <Animated.View 
+            <Animated.View
               entering={FadeIn.duration(300)}
               exiting={FadeOut.duration(300)}
               style={styles.successContainer}
@@ -2015,7 +2018,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: '100%',
   },
-   expiredPackageCard: {
+  expiredPackageCard: {
     borderLeftWidth: 4,
     borderLeftColor: Colors.error,
     opacity: 0.8,
@@ -2027,13 +2030,15 @@ const styles = StyleSheet.create({
   appointmentHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    marginBottom: 6,
   },
   serviceName: {
     fontSize: 16,
     fontFamily: 'Poppins-SemiBold',
     color: Colors.text,
-    width: '50%',
+    flex: 1,
+    marginRight: 8,
   },
   cancelButton: {
     width: 24,
@@ -2042,12 +2047,12 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.errorLight,
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft:-25,
+    marginTop: 2,
   },
   appointmentDetails: {
     marginBottom: 12,
   },
-   actionButtonsContainer: {
+  actionButtonsContainer: {
     flexDirection: 'row',
     justifyContent: 'flex-end', // Changed from 'space-between' to 'flex-end'
     marginTop: 12,
@@ -2364,6 +2369,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    marginBottom: 8,
+    flexWrap: 'wrap',
   },
   completedCard: {
     borderLeftWidth: 4,
@@ -2375,7 +2382,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignSelf: 'flex-start',
   },
- 
+
   statusText: {
     fontSize: 12,
     fontFamily: 'Poppins-SemiBold',
@@ -2383,7 +2390,6 @@ const styles = StyleSheet.create({
   statusText1: {
     fontSize: 12,
     fontFamily: 'Poppins-SemiBold',
-    marginLeft: -60,
   },
   disabledButton: {
     opacity: 0.5,
@@ -2473,13 +2479,13 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginLeft: 105,
   },
-   userTypeBadge: {
+  userTypeBadge: {
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 10,
     marginLeft: 8,
   },
- familyCard: {
+  familyCard: {
     borderLeftColor: Colors.secondary, // Different color for family bookings
   },
   familyBadge: {
@@ -2508,7 +2514,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   // Add to your styles if you want different visual feedback
-verifyingButton: {
-  backgroundColor: Colors.warning, // Orange/yellow color for verifying state
-},
+  verifyingButton: {
+    backgroundColor: Colors.warning, // Orange/yellow color for verifying state
+  },
 });

@@ -22,6 +22,9 @@ import { toast } from '@/utils/toast';
 import { sendWhatsAppNotification } from '@/config/twilio';
 import ShopDetailsModal from '@/components/ShopDetailsModal';
 import BookingWizardModal from '@/components/BookingWizardModal';
+import { openCashfreeCheckout } from '@/utils/cashfreeCheckout';
+
+const CASHFREE_BACKEND_URL = 'https://backend.vps.mybarber.co.in';
 
 const BUSINESS_HOURS = {
   start: 7,
@@ -1279,6 +1282,7 @@ export default function ServicesScreen() {
     setSelectedBarber(null);
     setShowShopDetailsModal(false);
     setSelectedTimeSlot(null);
+    setError('');
     setShowBookingModal(true);
   };
 
@@ -1652,7 +1656,134 @@ const handleSubmitBooking = async () => {
     const totalPerPerson = basePrice + addOnsTotal;
     const subtotal = totalPerPerson * slotsToBook;
     const couponDiscount = computeCouponDiscount(subtotal);
-    const totalPriceCalculated = subtotal - couponDiscount;
+    const totalPriceCalculated = Math.max(0, subtotal - couponDiscount);
+
+    let paymentSuccessData: { orderId: string; paymentId: string; paymentMethod: string } | null = null;
+
+    // 🔥 PREPAY ONLINE PAYMENT FLOW:
+    // If "PrePay Online" is selected, take payment via Cashfree FIRST.
+    // If the payment fails or is cancelled, abort immediately without creating an appointment.
+    if (paymentMethod === 'online') {
+      if (totalPriceCalculated <= 0) {
+        throw new Error('Total amount must be greater than zero for online payment.');
+      }
+
+      // 1️⃣ Pre-check slot availability before opening payment gateway
+      const preCheckTimeslot = await getDoc(timeslotRef);
+      if (preCheckTimeslot.exists()) {
+        const slotData = preCheckTimeslot.data();
+        const available = slotData.availableSlots ?? shopCapacity;
+        const occupied: number[] = slotData.occupiedChairs || [];
+        if (available < slotsToBook) {
+          throw new Error(`Only ${available} slot(s) available. Please choose another time.`);
+        }
+        if (chairSelectionApplies && selectedChairs.some(c => occupied.includes(c))) {
+          throw new Error('One or more selected chairs were just booked by someone else. Please choose different chairs.');
+        }
+      }
+
+      // 2️⃣ Create Cashfree Order via backend
+      const cleanPhone = (userPhone || '').replace(/[^0-9]/g, '').slice(-10) || '9999999999';
+      const orderReceipt = `bk_${Date.now()}`;
+
+      const orderResponse = await fetch(`${CASHFREE_BACKEND_URL}/create-order`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json'
+        },
+        body: JSON.stringify({
+          amount: totalPriceCalculated,
+          currency: 'INR',
+          receipt: orderReceipt,
+          notes: {
+            customer_id: user.uid,
+            phone: cleanPhone,
+            service_id: selectedService.originalServiceId || selectedService.id,
+            service_name: selectedService.name,
+            shop_id: selectedService.shopId,
+            user_id: user.uid
+          }
+        })
+      });
+
+      if (!orderResponse.ok) {
+        console.error(`Payment gateway response error: ${orderResponse.status}`);
+        throw new Error('Unable to connect to the payment gateway. Please try again or select Pay in Cash.');
+      }
+
+      const orderData = await orderResponse.json();
+      if (!orderData.success || !orderData.paymentSessionId) {
+        console.error('Payment order initialization error:', orderData);
+        throw new Error('Unable to initialize payment. Please try again or select Pay in Cash.');
+      }
+
+      // 3️⃣ Open Cashfree Checkout Sheet
+      let checkoutResult: any;
+      try {
+        checkoutResult = await openCashfreeCheckout(orderData.paymentSessionId, orderData.orderId);
+      } catch (checkoutErr: any) {
+        console.log('Cashfree payment cancelled or failed:', checkoutErr);
+        const isCancelled = checkoutErr?.code === 'PAYMENT_CANCELLED' || 
+                            checkoutErr?.message?.toLowerCase?.()?.includes('cancel') ||
+                            checkoutErr?.status === 'CANCELLED';
+
+        const alertTitle = isCancelled ? 'Payment Cancelled' : 'Payment Unsuccessful';
+        const businessMessage = isCancelled
+          ? 'Your payment was cancelled. Your appointment has not been booked.'
+          : 'We were unable to process your payment. If any amount was deducted, it will be automatically refunded to your original payment method. Your appointment has not been booked. Please try again or select Pay in Cash.';
+        const bannerMessage = isCancelled
+          ? 'Payment was cancelled. Your appointment was not booked.'
+          : 'Payment was unsuccessful. Your appointment was not booked. Please try again or select Pay in Cash.';
+
+        setError(bannerMessage);
+        Alert.alert(alertTitle, businessMessage, [{ text: 'OK' }]);
+        toast.error(alertTitle, bannerMessage);
+        setBookingLoading(false);
+        return; // STOP: no appointment created
+      }
+
+      if (!checkoutResult || !checkoutResult.success) {
+        const alertTitle = 'Payment Unsuccessful';
+        const businessMessage = 'We were unable to process your payment. If any amount was deducted, it will be automatically refunded to your original payment method. Your appointment has not been booked. Please try again or select Pay in Cash.';
+        const bannerMessage = 'Payment was unsuccessful. Your appointment was not booked. Please try again or select Pay in Cash.';
+
+        setError(bannerMessage);
+        Alert.alert(alertTitle, businessMessage, [{ text: 'OK' }]);
+        toast.error(alertTitle, bannerMessage);
+        setBookingLoading(false);
+        return; // STOP: no appointment created
+      }
+
+      // 4️⃣ Verify Payment with backend
+      const verifyResponse = await fetch(`${CASHFREE_BACKEND_URL}/verify-payment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          order_id: checkoutResult.orderId || orderData.orderId
+        })
+      });
+
+      const verifyResult = await verifyResponse.json();
+      if (!verifyResult.success) {
+        console.log('Payment verification unsuccessful:', verifyResult);
+        const alertTitle = 'Payment Unsuccessful';
+        const businessMessage = 'We were unable to confirm your payment with the bank. If any amount was deducted, it will be automatically refunded to your original payment method. Your appointment has not been booked.';
+        const bannerMessage = 'Payment could not be verified. Your appointment was not booked. Please try again or select Pay in Cash.';
+
+        setError(bannerMessage);
+        Alert.alert(alertTitle, businessMessage, [{ text: 'OK' }]);
+        toast.error(alertTitle, bannerMessage);
+        setBookingLoading(false);
+        return; // STOP: no appointment created
+      }
+
+      paymentSuccessData = {
+        orderId: checkoutResult.orderId || orderData.orderId,
+        paymentId: verifyResult.paymentId,
+        paymentMethod: verifyResult.paymentMethod || 'online'
+      };
+    }
 
     await runTransaction(db, async (transaction) => {
       const timeslotDoc = await transaction.get(timeslotRef);
@@ -1697,7 +1828,11 @@ const handleSubmitBooking = async () => {
         dateTime: slotKey,
         status:'pending',
         paymentMethod: paymentMethod,
-        paymentStatus: 'pending',
+        paymentStatus: paymentMethod === 'online' ? 'paid' : 'pending',
+        paymentDate: paymentMethod === 'online' ? new Date().toISOString() : null,
+        cashfreeOrderId: paymentSuccessData?.orderId || null,
+        cashfreePaymentId: paymentSuccessData?.paymentId || null,
+        razorpayPaymentId: paymentSuccessData?.paymentId || null,
         couponCode: appliedCoupon?.code || null,
         couponDiscount: couponDiscount || 0,
         verificationCode,
@@ -1836,34 +1971,31 @@ const handleSubmitBooking = async () => {
     setShowBookingModal(false);
     setFamilySlotsCount(1);
     setShowFamilySelector(false);
+    setPaymentMethod(null);
+    setSelectedChairs([]);
     setSuccessMessage(
-      slotsToBook > 1
-        ? `Booked for ${slotsToBook} family members!`
-        : 'Booking confirmed!'
+      paymentMethod === 'online'
+        ? (slotsToBook > 1 ? `Payment successful! Booked for ${slotsToBook} family members!` : 'Payment successful! Booking confirmed!')
+        : (slotsToBook > 1 ? `Booked for ${slotsToBook} family members!` : 'Booking confirmed!')
     );
     setShowSuccess(true);
     setTimeout(() => setShowSuccess(false), 3000);
-
-    // If online payment, redirect to payment gateway
-    if (paymentMethod === 'online') {
-      // Implement your payment gateway integration here
-      // For example:
-      // initiatePaymentGateway(bookingId, totalPriceCalculated);
-    }
 
     await generateAvailableTimeSlots();
 
   } catch (error: any) {
     console.error('Booking error:', error);
 
+    let userFriendlyMessage = 'Unable to complete your booking at this time. Please try again or select another time.';
     if (isRateLimited(error)) {
-      setError('Too many requests. Please wait a moment and try again.');
-      toast.error('Booking error', 'Too many requests. Please wait and try again.');
-      return;
+      userFriendlyMessage = 'Too many requests. Please wait a moment and try again.';
+    } else if (error?.message && !error.message.includes('(') && !error.message.includes('http') && !error.message.includes('{') && error.message.length < 100) {
+      userFriendlyMessage = error.message;
     }
 
-    setError(error.message);
-    toast.error('Booking error', error.message);
+    setError(userFriendlyMessage);
+    Alert.alert('Booking Unsuccessful', userFriendlyMessage, [{ text: 'OK' }]);
+    toast.error('Booking Unsuccessful', userFriendlyMessage);
   } finally {
     setBookingLoading(false);
   }
@@ -2103,7 +2235,11 @@ return (
           setShowBookingModal(false);
           setShowFamilySelector(false);
           setFamilySlotsCount(1);
+          setPaymentMethod(null);
+          setSelectedChairs([]);
+          setError('');
         }}
+        errorMessage={error}
         shopName={selectedService.shopName}
         accentColor={servicepriceColor()}
         uiTexts={uiTexts}

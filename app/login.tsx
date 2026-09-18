@@ -458,6 +458,58 @@ export default function Signup() {
     return null; // Will be redirected by the useEffect
   }
 
+  if (showTermsModal) {
+    return (
+      <View style={[styles.container, { backgroundColor: Colors.background, paddingTop: 40 }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#2A2A2A' }}>
+          <TouchableOpacity onPress={() => setShowTermsModal(false)} style={{ padding: 4 }}>
+            <X size={24} color={Colors.text} />
+          </TouchableOpacity>
+          <Text style={{ color: Colors.primary, fontSize: 18, fontFamily: 'Poppins-Bold', marginLeft: 16 }}>
+            Privacy Policy & Agreement
+          </Text>
+        </View>
+        <ScrollView style={{ flex: 1, padding: 20 }}>
+          <TouchableOpacity
+            style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}
+            onPress={() => Linking.openURL('https://www.groomzytechnologies.co.in/terms')}
+            activeOpacity={0.7}
+          >
+            <ExternalLink size={16} color={Colors.primary} style={{ marginRight: 8 }} />
+            <Text style={{ color: Colors.primary, fontSize: 14, textDecorationLine: 'underline' }}>
+              View full Terms — groomzytechnologies.co.in/terms
+            </Text>
+          </TouchableOpacity>
+          <Text style={{ color: Colors.textLight, fontSize: 14, lineHeight: 22, fontFamily: 'Poppins-Regular', marginBottom: 20 }}>
+            1. Bookings are confirmed only once payment or a valid time slot reservation is completed.{"\n\n"}
+            2. Please arrive on time; slots may be released after a short grace period if you are late.{"\n\n"}
+            3. Cancellations or rescheduling should be done as early as possible so the slot can be offered to others.{"\n\n"}
+            4. Prices, service duration and offers are subject to change without prior notice and may vary by shop.{"\n\n"}
+            5. Family bookings must be for members physically present at the time of the appointment.{"\n\n"}
+            6. The salon/shop is not responsible for any allergic reactions to products; please inform staff of any sensitivities beforehand.{"\n\n"}
+            7. By booking, you consent to receive booking-related notifications via app, SMS and WhatsApp.{"\n\n"}
+            For the complete, up-to-date Terms & Conditions, please see the link above.
+          </Text>
+          <View style={{ paddingVertical: 20, paddingBottom: 40, borderTopWidth: 1, borderTopColor: '#2A2A2A' }}>
+            <TouchableOpacity
+              style={{ backgroundColor: Colors.primary, padding: 16, borderRadius: 12, alignItems: 'center' }}
+              onPress={() => {
+                if (!agreedToTerms) {
+                  setAgreedToTerms(true);
+                }
+                setShowTermsModal(false);
+              }}
+            >
+              <Text style={{ color: '#FFF', fontSize: 16, fontFamily: 'Poppins-SemiBold' }}>
+                {!agreedToTerms ? 'I Agree' : 'Close'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <KeyboardAvoidingView
@@ -668,62 +720,6 @@ export default function Signup() {
           </Animated.View>
         </ScrollView>
       </KeyboardAvoidingView>
-
-      {/* Terms Modal */}
-      <Modal
-        visible={showTermsModal}
-        animationType="slide"
-        transparent={false}
-        onRequestClose={() => setShowTermsModal(false)}
-      >
-        <View style={[styles.container, { backgroundColor: Colors.background, paddingTop: 40 }]}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#2A2A2A' }}>
-            <TouchableOpacity onPress={() => setShowTermsModal(false)} style={{ padding: 4 }}>
-              <X size={24} color={Colors.text} />
-            </TouchableOpacity>
-            <Text style={{ color: Colors.primary, fontSize: 18, fontFamily: 'Poppins-Bold', marginLeft: 16 }}>
-              Privacy Policy & Agreement
-            </Text>
-          </View>
-          <ScrollView style={{ flex: 1, padding: 20 }}>
-            <TouchableOpacity
-              style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}
-              onPress={() => Linking.openURL('https://www.groomzytechnologies.co.in/terms')}
-              activeOpacity={0.7}
-            >
-              <ExternalLink size={16} color={Colors.primary} style={{ marginRight: 8 }} />
-              <Text style={{ color: Colors.primary, fontSize: 14, textDecorationLine: 'underline' }}>
-                View full Terms — groomzytechnologies.co.in/terms
-              </Text>
-            </TouchableOpacity>
-            <Text style={{ color: Colors.textLight, fontSize: 14, lineHeight: 22, fontFamily: 'Poppins-Regular', marginBottom: 20 }}>
-              1. Bookings are confirmed only once payment or a valid time slot reservation is completed.{"\n\n"}
-              2. Please arrive on time; slots may be released after a short grace period if you are late.{"\n\n"}
-              3. Cancellations or rescheduling should be done as early as possible so the slot can be offered to others.{"\n\n"}
-              4. Prices, service duration and offers are subject to change without prior notice and may vary by shop.{"\n\n"}
-              5. Family bookings must be for members physically present at the time of the appointment.{"\n\n"}
-              6. The salon/shop is not responsible for any allergic reactions to products; please inform staff of any sensitivities beforehand.{"\n\n"}
-              7. By booking, you consent to receive booking-related notifications via app, SMS and WhatsApp.{"\n\n"}
-              For the complete, up-to-date Terms & Conditions, please see the link above.
-            </Text>
-            <View style={{ paddingVertical: 20, paddingBottom: 40, borderTopWidth: 1, borderTopColor: '#2A2A2A' }}>
-              <TouchableOpacity
-                style={{ backgroundColor: Colors.primary, padding: 16, borderRadius: 12, alignItems: 'center' }}
-                onPress={() => {
-                  if (!agreedToTerms) {
-                    setAgreedToTerms(true);
-                  }
-                  setShowTermsModal(false);
-                }}
-              >
-                <Text style={{ color: '#FFF', fontSize: 16, fontFamily: 'Poppins-SemiBold' }}>
-                  {!agreedToTerms ? 'I Agree' : 'Close'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </ScrollView>
-        </View>
-      </Modal>
     </View>
   );
 }

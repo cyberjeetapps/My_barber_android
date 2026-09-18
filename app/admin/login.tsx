@@ -115,7 +115,7 @@ export default function AdminLogin() {
           }
         }
       } catch (error) {
-        console.log('No existing admin session found');
+        // No existing admin session found
       } finally {
         setIsCheckingSession(false);
       }
@@ -162,8 +162,6 @@ export default function AdminLogin() {
         adminName: adminData.name || '',
         adminEmail: adminData.email || '',
       });
-
-      console.log('✅ Push token saved for admin:', { uid, token });
     } catch (e) {
       console.error('❌ Error registering admin push token:', e);
     }

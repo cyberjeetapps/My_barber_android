@@ -42,8 +42,8 @@ import {
   Award,
 } from 'lucide-react-native';
 
-// 👉 Use your live backend URL
-const BACKEND_URL = 'https://my-barber-backend.onrender.com';
+// 👉 Use your live backend URL or local URL depending on environment
+const BACKEND_URL = __DEV__ ? 'https://backend.vps.mybarber.co.in' : 'https://my-barber-backend.onrender.com';
 
 export default function AdminOwnersList() {
   const router = useRouter();
@@ -102,16 +102,16 @@ export default function AdminOwnersList() {
   const createOwnerViaBackend = async (ownerData) => {
     try {
       setCreatingAuth(true);
-      
+
       // Get admin token for verification
       if (!auth.currentUser) {
         throw new Error('Not authenticated');
       }
       const adminToken = await auth.currentUser.getIdToken();
-      
+
       const response = await fetch(`${BACKEND_URL}/api/owners/create-owner`, {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -123,7 +123,6 @@ export default function AdminOwnersList() {
       const result = await response.json();
 
       if (result.success) {
-        console.log('Owner created with credentials:', result.credentials);
         return result.ownerId;
       } else {
         throw new Error(result.message || 'Failed to create owner');
@@ -144,10 +143,10 @@ export default function AdminOwnersList() {
         throw new Error('Not authenticated');
       }
       const adminToken = await auth.currentUser.getIdToken();
-      
+
       const response = await fetch(`${BACKEND_URL}/api/owners/update-owner/${ownerId}`, {
         method: 'PUT',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -177,10 +176,10 @@ export default function AdminOwnersList() {
         throw new Error('Not authenticated');
       }
       const adminToken = await auth.currentUser.getIdToken();
-      
+
       const response = await fetch(`${BACKEND_URL}/api/owners/delete-owner/${ownerId}`, {
         method: 'DELETE',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -274,7 +273,7 @@ export default function AdminOwnersList() {
       } else {
         // Create new owner via backend API
         const ownerId = await createOwnerViaBackend(newOwner);
-        
+
         if (ownerId) {
           setSuccessMessage('Owner created successfully with login access!');
         }
@@ -352,7 +351,7 @@ export default function AdminOwnersList() {
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
-    
+
     try {
       const date = new Date(dateString);
       return date.toLocaleDateString('en-IN', {
@@ -418,8 +417,8 @@ export default function AdminOwnersList() {
             <View style={styles.authInfo}>
               <Key size={16} color={Colors.primary} />
               <Text style={styles.authInfoText}>
-                {editOwnerId 
-                  ? 'Editing existing owner profile' 
+                {editOwnerId
+                  ? 'Editing existing owner profile'
                   : 'Owner will receive login access using their phone number'
                 }
               </Text>
@@ -564,9 +563,9 @@ export default function AdminOwnersList() {
                   <Check size={18} color="white" />
                 )}
                 <Text style={styles.saveButtonText}>
-                  {creatingAuth ? 'Creating Account...' : 
-                   loading ? (editOwnerId ? 'Updating...' : 'Saving...') : 
-                   editOwnerId ? 'Update' : 'Save'}
+                  {creatingAuth ? 'Creating Account...' :
+                    loading ? (editOwnerId ? 'Updating...' : 'Saving...') :
+                      editOwnerId ? 'Update' : 'Save'}
                 </Text>
               </TouchableOpacity>
             </View>
