@@ -101,6 +101,16 @@ module.exports = {
           action: "VIEW",
           data: [
             {
+              scheme: "mybarberapp",
+              host: "payment"
+            }
+          ],
+          category: ["BROWSABLE", "DEFAULT"]
+        },
+        {
+          action: "VIEW",
+          data: [
+            {
               scheme: "https",
               host: "mybarber.co.in",
               pathPrefix: "/admin"
@@ -115,6 +125,17 @@ module.exports = {
               scheme: "https",
               host: "mybarber.co.in",
               pathPrefix: "/owner"
+            }
+          ],
+          category: ["BROWSABLE", "DEFAULT"]
+        },
+        {
+          action: "VIEW",
+          data: [
+            {
+              scheme: "https",
+              host: "mybarber.co.in",
+              pathPrefix: "/return"
             }
           ],
           category: ["BROWSABLE", "DEFAULT"]

@@ -272,8 +272,8 @@ export default function Signup() {
       setUser(updatedUser);
       router.replace('/(tabs)');
     } catch (err: any) {
-      setError(`Duplicate account error: ${err.message}`);
       console.error('Duplicate account error:', err);
+      setError('Unable to complete sign in. Please try again or contact support.');
     } finally {
       setLoading(false);
     }
@@ -329,7 +329,14 @@ export default function Signup() {
     } catch (err: any) {
       haptics.error();
       console.error('Send code error:', err);
-      setError(err.message || 'Error sending verification code. Please try again.');
+      let errorMessage = 'Unable to send verification code. Please check your phone number and try again.';
+      const msg = (err?.message || '').toLowerCase();
+      if (msg.includes('network') || err?.code === 'unavailable') {
+        errorMessage = 'Network connection issue. Please check your internet connection and try again.';
+      } else if (msg.includes('limit') || err?.code === 'resource-exhausted') {
+        errorMessage = 'Too many requests. Please wait a few moments before requesting a new code.';
+      }
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -425,18 +432,21 @@ export default function Signup() {
       router.replace('/(tabs)');
     } catch (err: any) {
       haptics.error();
-      let errorMessage = 'Verification failed';
+      console.error('Verification error:', err);
+      let errorMessage = 'Verification unsuccessful. Please check your code and try again.';
 
-      if (err.message.includes('not-found') || err.message.includes('expired')) {
-        errorMessage = 'Code expired - please request a new one';
-      } else if (err.message.includes('Invalid')) {
-        errorMessage = 'Invalid code - please try again';
-      } else if (err.message) {
-        errorMessage = err.message;
+      const msg = (err?.message || '').toLowerCase();
+      if (msg.includes('not-found') || msg.includes('expired')) {
+        errorMessage = 'Verification code has expired. Please request a new code.';
+      } else if (msg.includes('invalid') || msg.includes('incorrect') || msg.includes('wrong')) {
+        errorMessage = 'Incorrect verification code. Please check the code and try again.';
+      } else if (msg.includes('network') || err?.code === 'unavailable') {
+        errorMessage = 'Network connection issue. Please check your internet connection and try again.';
+      } else if (msg.includes('limit') || msg.includes('too many') || err?.code === 'resource-exhausted') {
+        errorMessage = 'Too many attempts. Please wait a few moments before trying again.';
       }
 
       setError(errorMessage);
-      console.error('Verification error:', err);
     } finally {
       setLoading(false);
     }

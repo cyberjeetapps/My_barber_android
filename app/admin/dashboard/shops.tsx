@@ -9,7 +9,6 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
 import { useRouter } from 'expo-router';
 import Colors from '@/constants/Colors';
 import {
@@ -27,6 +26,9 @@ import {
   Calendar,
   Award,
   Type,
+  ChevronDown,
+  ChevronUp,
+  Check,
 } from 'lucide-react-native';
 import {
   collection,
@@ -36,6 +38,7 @@ import {
   doc,
   updateDoc,
   getDoc,
+  setDoc,
 } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 
@@ -76,6 +79,8 @@ export default function ShopsManagement() {
   const [loading, setLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(true);
   const [editShopId, setEditShopId] = useState<string | null>(null);
+  const [previousOwnerId, setPreviousOwnerId] = useState<string | null>(null);
+  const [isOwnerDropdownOpen, setIsOwnerDropdownOpen] = useState(false);
   const [geocodingError, setGeocodingError] = useState<string | null>(null);
   const [newShop, setNewShop] = useState<Omit<Shop, 'id'>>({
     shopName: '',
@@ -127,16 +132,38 @@ export default function ShopsManagement() {
     shopId: string,
     shopName: string
   ) => {
+    if (!ownerId) return;
     try {
       const ownerRef = doc(db, 'barberowner', ownerId);
-      await updateDoc(ownerRef, {
-        shopId: shopId, // Store shop ID as string
-        shopName: shopName, // Store shop name as string
-        updatedAt: new Date().toISOString(),
-      });
+      await setDoc(
+        ownerRef,
+        {
+          shopId: shopId,
+          shopName: shopName,
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      );
     } catch (error) {
-      console.error('Error updating owner with shop:', error);
-      throw new Error('Failed to update owner with shop information');
+      console.warn('Notice: Could not update owner with shop info:', error);
+    }
+  };
+
+  const clearOwnerShop = async (ownerId: string) => {
+    if (!ownerId) return;
+    try {
+      const ownerRef = doc(db, 'barberowner', ownerId);
+      await setDoc(
+        ownerRef,
+        {
+          shopId: '',
+          shopName: '',
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      );
+    } catch (error) {
+      console.warn('Notice: Could not clear shop from previous owner:', error);
     }
   };
 
@@ -193,16 +220,20 @@ export default function ShopsManagement() {
         querySnapshot.docs.map(async (shopDoc) => {
           const shopData = shopDoc.data();
 
-          // Fetch owner name
-          let ownerName = 'Unknown';
+          // Fetch owner name if not already on the shop document
+          let ownerName = shopData.ownerName || 'Unknown';
           if (shopData.ownerId) {
             try {
-              const ownerDoc = await getDoc(doc(db, 'barberowner', shopData.ownerId));
+              const ownerDoc = await getDoc(
+                doc(db, 'barberowner', shopData.ownerId)
+              );
               if (ownerDoc.exists()) {
-                ownerName = ownerDoc.data().name || 'Unknown';
+                const od = ownerDoc.data();
+                ownerName =
+                  od.name || od.ownerName || od.fullName || ownerName;
               }
             } catch (error) {
-              console.error('Error fetching owner name:', error);
+              console.warn('Error fetching owner name for shop:', error);
             }
           }
 
@@ -227,7 +258,11 @@ export default function ShopsManagement() {
       const querySnapshot = await getDocs(collection(db, 'barberowner'));
       const ownersData = querySnapshot.docs.map((doc) => ({
         id: doc.id,
-        name: doc.data().name || doc.data().ownerName || 'Unknown',
+        name:
+          doc.data().name ||
+          doc.data().ownerName ||
+          doc.data().fullName ||
+          'Unknown',
       }));
       setOwners(ownersData);
     } catch (error) {
@@ -266,27 +301,57 @@ export default function ShopsManagement() {
         .filter(Boolean)
         .join(', ');
 
-      const coordinates = await geocodeWithRetry(fullAddress);
+      let lat = newShop.latitude || 0;
+      let lng = newShop.longitude || 0;
+
+      // Only attempt geocoding if coordinates are 0 (e.g., new shop or missing coordinates)
+      if (!lat || !lng) {
+        try {
+          const coordinates = await geocodeWithRetry(fullAddress);
+          lat = coordinates.lat;
+          lng = coordinates.lng;
+        } catch (geoError: any) {
+          console.warn('Geocoding notice:', geoError?.message);
+          // If creating a brand new shop without coordinates, require geocoding
+          if (!editShopId) {
+            throw geoError;
+          }
+        }
+      }
+
+      // Resolve selected owner name
+      const selectedOwner = owners.find((o) => o.id === newShop.ownerId);
+      const ownerName = selectedOwner
+        ? selectedOwner.name
+        : (newShop as any).ownerName || 'Unknown';
 
       const shopData = {
         ...newShop,
-        latitude: coordinates.lat,
-        longitude: coordinates.lng,
+        ownerName,
+        latitude: lat,
+        longitude: lng,
       };
 
       if (editShopId) {
-        // Update existing shop
+        // Update existing shop in Firestore
         await updateDoc(doc(db, 'shops', editShopId), {
           ...shopData,
           updatedAt: new Date().toISOString(),
         });
 
-        // Also update the owner's document with the shop info
-        await updateOwnerWithShop(
-          newShop.ownerId,
-          editShopId,
-          newShop.shopName
-        );
+        // If owner was changed, unassign from old owner
+        if (previousOwnerId && previousOwnerId !== newShop.ownerId) {
+          await clearOwnerShop(previousOwnerId);
+        }
+
+        // Link new owner with this shop
+        if (newShop.ownerId) {
+          await updateOwnerWithShop(
+            newShop.ownerId,
+            editShopId,
+            newShop.shopName
+          );
+        }
 
         Alert.alert('Success', 'Shop updated successfully');
       } else {
@@ -297,26 +362,35 @@ export default function ShopsManagement() {
         });
 
         // Update the owner's document with the new shop info
-        await updateOwnerWithShop(newShop.ownerId, docRef.id, newShop.shopName);
+        if (newShop.ownerId) {
+          await updateOwnerWithShop(
+            newShop.ownerId,
+            docRef.id,
+            newShop.shopName
+          );
+        }
 
         Alert.alert('Success', 'Shop added successfully');
       }
 
       resetForm();
-      fetchShops();
+      await fetchShops();
+      await fetchOwners();
     } catch (error: any) {
       console.error('Error saving shop:', error);
 
       if (
-        error.message.includes('geocode') ||
-        error.message.includes('address')
+        error.message?.includes('geocode') ||
+        error.message?.includes('address')
       ) {
         setGeocodingError(error.message);
         Alert.alert('Address Error', error.message);
       } else {
         Alert.alert(
           'Error',
-          editShopId ? 'Failed to update shop' : 'Failed to add shop'
+          editShopId
+            ? `Failed to update shop: ${error.message || ''}`
+            : `Failed to add shop: ${error.message || ''}`
         );
       }
     } finally {
@@ -325,27 +399,31 @@ export default function ShopsManagement() {
   };
 
   const validateForm = () => {
-    const requiredFields = [
-      'shopName',
-      'ownerId',
-      'shopEmail',
-      'phoneNumber',
-      'businessType',
-      'gender',
-      'addressLine1',
-      'city',
-      'stateRegion',
-      'postalCode',
-      'country',
-      'openingHours',
-    ];
+    const fieldLabels: Record<string, string> = {
+      shopName: 'Shop Name',
+      ownerId: 'Owner',
+      shopEmail: 'Shop Email',
+      phoneNumber: 'Phone Number',
+      businessType: 'Business Type',
+      gender: 'Gender',
+      addressLine1: 'Address Line 1',
+      city: 'City',
+      stateRegion: 'State / Region',
+      postalCode: 'Postal Code',
+      country: 'Country',
+      openingHours: 'Opening Hours',
+    };
 
-    const missingFields = requiredFields.filter(
+    const missingFields = Object.keys(fieldLabels).filter(
       (field) => !newShop[field as keyof typeof newShop]
     );
 
     if (missingFields.length > 0) {
-      Alert.alert('Error', 'Please fill in all required fields');
+      const missingLabels = missingFields.map((f) => fieldLabels[f]).join(', ');
+      Alert.alert(
+        'Missing Required Fields',
+        `Please fill in: ${missingLabels}`
+      );
       return false;
     }
     return true;
@@ -372,7 +450,9 @@ export default function ShopsManagement() {
       longitude: 0,
       capacity: 4,
     });
+    setPreviousOwnerId(null);
     setEditShopId(null);
+    setIsOwnerDropdownOpen(false);
     setShowAddForm(false);
   };
 
@@ -399,15 +479,11 @@ export default function ShopsManagement() {
 
               // Remove the shop from the owner's document
               if (shopData?.ownerId) {
-                const ownerRef = doc(db, 'barberowner', shopData.ownerId);
-                await updateDoc(ownerRef, {
-                  shopId: '', // Clear shop ID
-                  shopName: '', // Clear shop name
-                  updatedAt: new Date().toISOString(),
-                });
+                await clearOwnerShop(shopData.ownerId);
               }
 
               await fetchShops();
+              await fetchOwners();
               Alert.alert('Success', 'Shop deleted successfully');
             } catch (error) {
               console.error('Error deleting shop:', error);
@@ -423,26 +499,28 @@ export default function ShopsManagement() {
 
   const handleEditShop = (shop: Shop) => {
     setEditShopId(shop.id);
+    setPreviousOwnerId(shop.ownerId || null);
     setNewShop({
-      shopName: shop.shopName,
-      ownerId: shop.ownerId,
-      shopEmail: shop.shopEmail,
-      phoneNumber: shop.phoneNumber,
-      businessType: shop.businessType,
-      gender: shop.gender,
-      addressLine1: shop.addressLine1,
+      shopName: shop.shopName || '',
+      ownerId: shop.ownerId || '',
+      shopEmail: shop.shopEmail || '',
+      phoneNumber: shop.phoneNumber || '',
+      businessType: shop.businessType || 'Barber',
+      gender: shop.gender || 'Men',
+      addressLine1: shop.addressLine1 || '',
       addressLine2: shop.addressLine2 || '',
-      city: shop.city,
-      stateRegion: shop.stateRegion,
-      postalCode: shop.postalCode,
-      country: shop.country,
+      city: shop.city || '',
+      stateRegion: shop.stateRegion || '',
+      postalCode: shop.postalCode || '',
+      country: shop.country || 'India',
       googleMapLink: shop.googleMapLink || '',
-      openingHours: shop.openingHours,
+      openingHours: shop.openingHours || '',
       closedDays: shop.closedDays || [],
-      latitude: 0,
-      longitude: 0,
+      latitude: shop.latitude || 0,
+      longitude: shop.longitude || 0,
       capacity: shop.capacity || 4,
     });
+    setIsOwnerDropdownOpen(false);
     setShowAddForm(true);
   };
 
@@ -524,70 +602,139 @@ export default function ShopsManagement() {
                     </View>
                   </View>
 
+                  {/* Owner Selector */}
                   <View style={styles.inputRow}>
                     <View style={[styles.inputContainer, { flex: 1 }]}>
                       <Text style={styles.inputLabel}>Owner *</Text>
-                      <View style={styles.pickerContainer}>
-                        <Picker
-                          selectedValue={newShop.ownerId}
-                          onValueChange={(value) =>
-                            setNewShop({ ...newShop, ownerId: value })
-                          }
-                          style={styles.picker}
-                        >
-                          <Picker.Item label="Select Owner" value="" />
-                          {owners.map((owner) => (
-                            <Picker.Item
-                              key={owner.id}
-                              label={owner.name}
-                              value={owner.id}
-                            />
-                          ))}
-                        </Picker>
-                      </View>
+                      <TouchableOpacity
+                        style={styles.dropdownButton}
+                        onPress={() => setIsOwnerDropdownOpen(!isOwnerDropdownOpen)}
+                        activeOpacity={0.7}
+                      >
+                        <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                          <User size={18} color={Colors.primary} style={{ marginRight: 8 }} />
+                          <Text
+                            style={[
+                              styles.dropdownButtonText,
+                              !newShop.ownerId && { color: Colors.textLight },
+                            ]}
+                          >
+                            {newShop.ownerId
+                              ? owners.find((o) => o.id === newShop.ownerId)?.name ||
+                                `Unlinked (${newShop.ownerId.slice(0, 10)}...)`
+                              : 'Select Owner'}
+                          </Text>
+                        </View>
+                        {isOwnerDropdownOpen ? (
+                          <ChevronUp size={20} color={Colors.text} />
+                        ) : (
+                          <ChevronDown size={20} color={Colors.text} />
+                        )}
+                      </TouchableOpacity>
+
+                      {isOwnerDropdownOpen && (
+                        <View style={styles.dropdownMenu}>
+                          {owners.length === 0 ? (
+                            <Text style={styles.dropdownEmptyText}>
+                              No owners registered
+                            </Text>
+                          ) : (
+                            owners.map((owner) => {
+                              const isSelected = newShop.ownerId === owner.id;
+                              return (
+                                <TouchableOpacity
+                                  key={owner.id}
+                                  style={[
+                                    styles.dropdownMenuItem,
+                                    isSelected && styles.dropdownMenuItemSelected,
+                                  ]}
+                                  onPress={() => {
+                                    setNewShop({ ...newShop, ownerId: owner.id });
+                                    setIsOwnerDropdownOpen(false);
+                                  }}
+                                >
+                                  <Text
+                                    style={[
+                                      styles.dropdownMenuItemText,
+                                      isSelected && styles.dropdownMenuItemTextSelected,
+                                    ]}
+                                  >
+                                    {owner.name}
+                                  </Text>
+                                  {isSelected && (
+                                    <Check size={16} color={Colors.primary} />
+                                  )}
+                                </TouchableOpacity>
+                              );
+                            })
+                          )}
+                        </View>
+                      )}
                     </View>
                   </View>
 
+                  {/* Business Type Selector */}
                   <View style={styles.inputRow}>
                     <View style={[styles.inputContainer, { flex: 1 }]}>
                       <Text style={styles.inputLabel}>Business Type *</Text>
-                      <View style={styles.pickerContainer}>
-                        <Picker
-                          selectedValue={newShop.businessType}
-                          onValueChange={(value) =>
-                            setNewShop({ ...newShop, businessType: value })
-                          }
-                          style={styles.picker}
-                        >
-                          <Picker.Item label="Select Type" value="" />
-                          {businessTypes.map((type) => (
-                            <Picker.Item key={type} label={type} value={type} />
-                          ))}
-                        </Picker>
+                      <View style={styles.chipsContainer}>
+                        {businessTypes.map((type) => {
+                          const isSelected = newShop.businessType === type;
+                          return (
+                            <TouchableOpacity
+                              key={type}
+                              style={[
+                                styles.chipButton,
+                                isSelected && styles.chipButtonSelected,
+                              ]}
+                              onPress={() =>
+                                setNewShop({ ...newShop, businessType: type })
+                              }
+                            >
+                              <Text
+                                style={[
+                                  styles.chipText,
+                                  isSelected && styles.chipTextSelected,
+                                ]}
+                              >
+                                {type}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
                       </View>
                     </View>
                   </View>
 
+                  {/* Gender Selector */}
                   <View style={styles.inputRow}>
                     <View style={[styles.inputContainer, { flex: 1 }]}>
                       <Text style={styles.inputLabel}>Gender *</Text>
-                      <View style={styles.pickerContainer}>
-                        <Picker
-                          selectedValue={newShop.gender}
-                          onValueChange={(value) =>
-                            setNewShop({ ...newShop, gender: value })
-                          }
-                          style={styles.picker}
-                        >
-                          <Picker.Item label="Select Gender" value="" />
-                          {genders.map((gender) => (
-                            <Picker.Item
+                      <View style={styles.chipsContainer}>
+                        {genders.map((gender) => {
+                          const isSelected = newShop.gender === gender;
+                          return (
+                            <TouchableOpacity
                               key={gender}
-                              label={gender}
-                              value={gender}
-                            />
-                          ))}
-                        </Picker>
+                              style={[
+                                styles.chipButton,
+                                isSelected && styles.chipButtonSelected,
+                              ]}
+                              onPress={() =>
+                                setNewShop({ ...newShop, gender })
+                              }
+                            >
+                              <Text
+                                style={[
+                                  styles.chipText,
+                                  isSelected && styles.chipTextSelected,
+                                ]}
+                              >
+                                {gender}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
                       </View>
                     </View>
                   </View>
@@ -707,23 +854,40 @@ export default function ShopsManagement() {
                     </View>
                     <View style={[styles.inputContainer, { flex: 0.4 }]}>
                       <Text style={styles.inputLabel}>Country *</Text>
-                      <View style={styles.pickerContainer}>
-                        <Picker
-                          selectedValue={newShop.country}
-                          onValueChange={(value) =>
-                            setNewShop({ ...newShop, country: value })
-                          }
-                          style={styles.picker}
-                        >
-                          <Picker.Item label="Select Country" value="" />
-                          {countries.map((country) => (
-                            <Picker.Item
-                              key={country}
-                              label={country}
-                              value={country}
-                            />
-                          ))}
-                        </Picker>
+                      <TextInput
+                        style={styles.input}
+                        value={newShop.country}
+                        onChangeText={(text) =>
+                          setNewShop({ ...newShop, country: text })
+                        }
+                        placeholder="e.g. India"
+                      />
+                      <View style={[styles.chipsContainer, { marginTop: 6 }]}>
+                        {['India', 'USA', 'UAE', 'UK'].map((c) => {
+                          const isSelected =
+                            newShop.country?.toLowerCase() === c.toLowerCase();
+                          return (
+                            <TouchableOpacity
+                              key={c}
+                              style={[
+                                styles.chipButtonSmall,
+                                isSelected && styles.chipButtonSmallSelected,
+                              ]}
+                              onPress={() =>
+                                setNewShop({ ...newShop, country: c })
+                              }
+                            >
+                              <Text
+                                style={[
+                                  styles.chipTextSmall,
+                                  isSelected && styles.chipTextSmallSelected,
+                                ]}
+                              >
+                                {c}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
                       </View>
                     </View>
                   </View>
@@ -889,8 +1053,13 @@ export default function ShopsManagement() {
                   <View style={styles.detailRow}>
                     <User size={16} color={Colors.primary} />
                     <Text style={styles.detailText}>
-                      Owner:  {owners.find((o) => o.id === shop.ownerId)?.name ||
-                        'Unknown'}
+                      Owner:{' '}
+                      <Text style={{ fontFamily: 'Poppins-SemiBold', color: Colors.primary }}>
+                        {shop.ownerName && shop.ownerName !== 'Unknown'
+                          ? shop.ownerName
+                          : owners.find((o) => o.id === shop.ownerId)?.name ||
+                            'Not Assigned / Unknown'}
+                      </Text>
                     </Text>
                   </View>
 
@@ -1112,17 +1281,111 @@ const styles = StyleSheet.create({
     color: Colors.text,
     backgroundColor: Colors.backgroundLight,
   },
-  pickerContainer: {
+  dropdownButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     borderWidth: 1,
     borderColor: Colors.border,
     borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
     backgroundColor: Colors.backgroundLight,
-    overflow: 'hidden',
+    minHeight: 48,
   },
-  picker: {
-    height: 44,
+  dropdownButtonText: {
+    fontSize: 14,
+    fontFamily: 'Poppins-Regular',
     color: Colors.text,
-    paddingVertical: 25,
+  },
+  dropdownMenu: {
+    marginTop: 6,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 8,
+    backgroundColor: Colors.white || '#ffffff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    maxHeight: 220,
+    zIndex: 1000,
+  },
+  dropdownMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  dropdownMenuItemSelected: {
+    backgroundColor: '#eff6ff',
+  },
+  dropdownMenuItemText: {
+    fontSize: 14,
+    fontFamily: 'Poppins-Regular',
+    color: Colors.text,
+  },
+  dropdownMenuItemTextSelected: {
+    fontFamily: 'Poppins-SemiBold',
+    color: Colors.primary,
+  },
+  dropdownEmptyText: {
+    padding: 16,
+    fontSize: 13,
+    fontFamily: 'Poppins-Regular',
+    color: Colors.textLight,
+    textAlign: 'center',
+  },
+  chipsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 4,
+  },
+  chipButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.backgroundLight,
+  },
+  chipButtonSelected: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  chipText: {
+    fontSize: 13,
+    fontFamily: 'Poppins-Medium',
+    color: Colors.text,
+  },
+  chipTextSelected: {
+    color: '#ffffff',
+    fontFamily: 'Poppins-SemiBold',
+  },
+  chipButtonSmall: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.backgroundLight,
+  },
+  chipButtonSmallSelected: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  chipTextSmall: {
+    fontSize: 11,
+    fontFamily: 'Poppins-Medium',
+    color: Colors.text,
+  },
+  chipTextSmallSelected: {
+    color: '#ffffff',
   },
   daysContainer: {
     flexDirection: 'row',

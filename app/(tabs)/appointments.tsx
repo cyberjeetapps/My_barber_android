@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Colors from '@/constants/Colors';
 import { Calendar, Clock, MapPin, X, ChevronRight, Star, CreditCard, ShoppingBag, CalendarPlus, Navigation, Repeat2, ReceiptText } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp, FadeOut } from 'react-native-reanimated';
-import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, getDoc, runTransaction } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, getDoc, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { useAuth } from '@/context/auth';
 import { useFocusEffect } from '@react-navigation/native';
@@ -48,7 +48,7 @@ export default function AppointmentsScreen() {
   const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
   const [rescheduleDate, setRescheduleDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [selectedTimeSlot, setSelectedTimeSlot] = useState<any>(null);
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState<any>(null);  
   const [availableTimeSlots, setAvailableTimeSlots] = useState<any[]>([]);
   const [rescheduleLoading, setRescheduleLoading] = useState(false);
   const [rescheduleError, setRescheduleError] = useState('');
@@ -102,10 +102,16 @@ export default function AppointmentsScreen() {
     confirmReschedule: 'Confirm Reschedule',
     rescheduling: 'Rescheduling...',
     submitting: 'Submitting...',
-    deleteAppointment: 'Delete Appointment',
-    deleteConfirm: 'Are you sure you want to delete this appointment?',
-    cancel: 'Cancel',
-    delete: 'Delete',
+    cancelAppointment: 'Cancel Appointment',
+    cancelConfirm: 'Are you sure you want to cancel this appointment?',
+    cancelPaidConfirm: 'Are you sure you want to cancel this appointment?\n\nPlease note: This is a paid appointment and payments are non-refundable. No refund will be issued upon cancellation.',
+    keepAppointment: 'Keep Appointment',
+    confirmCancelNoRefund: 'Cancel (No Refund)',
+    confirmCancel: 'Cancel Appointment',
+    deleteAppointment: 'Cancel Appointment',
+    deleteConfirm: 'Are you sure you want to cancel this appointment?',
+    cancel: 'Keep Appointment',
+    delete: 'Cancel',
     makePayment: 'Make Payment',
     rescheduleButton: 'Reschedule',
     availableTimeSlots: 'Available Time Slots',
@@ -149,10 +155,16 @@ export default function AppointmentsScreen() {
           confirmReschedule: 'Confirm Reschedule',
           rescheduling: 'Rescheduling...',
           submitting: 'Submitting...',
-          deleteAppointment: 'Delete Appointment',
-          deleteConfirm: 'Are you sure you want to delete this appointment?',
-          cancel: 'Cancel',
-          delete: 'Delete',
+          cancelAppointment: 'Cancel Appointment',
+          cancelConfirm: 'Are you sure you want to cancel this appointment?',
+          cancelPaidConfirm: 'Are you sure you want to cancel this appointment?\n\nPlease note: This is a paid appointment and payments are non-refundable. No refund will be issued upon cancellation.',
+          keepAppointment: 'Keep Appointment',
+          confirmCancelNoRefund: 'Cancel (No Refund)',
+          confirmCancel: 'Cancel Appointment',
+          deleteAppointment: 'Cancel Appointment',
+          deleteConfirm: 'Are you sure you want to cancel this appointment?',
+          cancel: 'Keep Appointment',
+          delete: 'Cancel',
           makePayment: 'Make Payment',
           rescheduleButton: 'Reschedule',
           availableTimeSlots: 'Available Time Slots',
@@ -192,10 +204,10 @@ export default function AppointmentsScreen() {
           translate('Confirm Reschedule'),
           translate('Rescheduling...'),
           translate('Submitting...'),
-          translate('Delete Appointment'),
-          translate('Are you sure you want to delete this appointment?'),
+          translate('Cancel Appointment'),
+          translate('Are you sure you want to cancel this appointment?'),
+          translate('Keep Appointment'),
           translate('Cancel'),
-          translate('Delete'),
           translate('Make Payment'),
           translate('Reschedule'),
           translate('Available Time Slots'),
@@ -203,6 +215,8 @@ export default function AppointmentsScreen() {
           translate('Appointment rescheduled with'),
           translate('Family Bookings'),
           translate('No family bookings'),
+          translate('Are you sure you want to cancel this appointment? Please note: This is a paid appointment and payments are non-refundable. No refund will be issued upon cancellation.'),
+          translate('Cancel (No Refund)'),
         ]);
 
         setUiTexts(prev => ({
@@ -236,6 +250,10 @@ export default function AppointmentsScreen() {
           confirmReschedule: translated[26],
           rescheduling: translated[27],
           submitting: translated[28],
+          cancelAppointment: translated[29],
+          cancelConfirm: translated[30],
+          keepAppointment: translated[31],
+          confirmCancel: translated[32],
           deleteAppointment: translated[29],
           deleteConfirm: translated[30],
           cancel: translated[31],
@@ -247,6 +265,8 @@ export default function AppointmentsScreen() {
           appointmentRescheduled: translated[37],
           familyBookings: translated[38],
           noFamilyBookings: translated[39],
+          cancelPaidConfirm: translated[40],
+          confirmCancelNoRefund: translated[41],
         }));
       }
     };
@@ -295,11 +315,15 @@ export default function AppointmentsScreen() {
           Accept: 'application/json'
         },
         body: JSON.stringify({
+          serviceId: appointment.serviceId,
+          bookingId: appointment.id,
+          appointmentId: appointment.id,
           amount: appointment.totalPrice ?? appointment.servicePrice,
           currency: 'INR',
           receipt: `rcptid_${appointment.id}`,
           notes: {
             appointment_id: appointment.id,
+            service_id: appointment.serviceId,
             service: appointment.serviceName,
             user_id: user.uid
           }
@@ -311,11 +335,11 @@ export default function AppointmentsScreen() {
         throw new Error(`Server error: ${response.status} - ${errorText}`);
       }
 
-      const { orderId, paymentSessionId, amount, currency } = await response.json();
+      const { orderId, paymentSessionId, amount, currency, environment } = await response.json();
       console.log('Cashfree order created:', orderId);
 
       // 3️⃣ Open Cashfree checkout
-      openCashfreeCheckout(paymentSessionId, orderId)
+      openCashfreeCheckout(paymentSessionId, orderId, environment)
         .then(async (data) => {
           console.log('Payment response:', data);
 
@@ -399,9 +423,9 @@ export default function AppointmentsScreen() {
 
       if (!response.ok) throw new Error(`Server error: ${response.status}`);
 
-      const { orderId, paymentSessionId, amount, currency } = await response.json();
+      const { orderId, paymentSessionId, amount, currency, environment } = await response.json();
 
-      openCashfreeCheckout(paymentSessionId, orderId)
+      openCashfreeCheckout(paymentSessionId, orderId, environment)
         .then(async (data) => {
           console.log('Family payment data:', data);
 
@@ -481,9 +505,9 @@ export default function AppointmentsScreen() {
 
       if (!response.ok) throw new Error(`Server error: ${response.status}`);
 
-      const { orderId, paymentSessionId, amount, currency } = await response.json();
+      const { orderId, paymentSessionId, amount, currency, environment } = await response.json();
 
-      const paymentData = await openCashfreeCheckout(paymentSessionId, orderId);
+      const paymentData = await openCashfreeCheckout(paymentSessionId, orderId, environment);
 
       // Start verification process
       setVerifyingPayment(true);
@@ -879,9 +903,10 @@ export default function AppointmentsScreen() {
           <View style={styles.appointmentHeader}>
             <Text style={styles.serviceName}>{serviceName}</Text>
 
-            {isUpcoming && appointment.status === 'pending' && (
+            {isUpcoming && (appointment.status === 'pending' || appointment.status === 'confirmed') && (
               <TouchableOpacity
                 style={styles.cancelButton}
+                accessibilityLabel={uiTexts.cancelAppointment}
                 onPress={() =>
                   appointment.isFamilyBooking
                     ? handleDeleteFamilyBooking(appointment)
@@ -913,6 +938,14 @@ export default function AppointmentsScreen() {
                 {appointment.status.toUpperCase()}
               </Text>
             </View>
+
+            {appointment.status === 'cancelled' && appointment.paymentStatus === 'paid' && (
+              <View style={[styles.statusBadge, { backgroundColor: '#F3F4F6' }]}>
+                <Text style={[styles.statusText, { color: Colors.textSecondary, fontSize: 10 }]}>
+                  NON-REFUNDABLE
+                </Text>
+              </View>
+            )}
           </View>
 
           <View style={styles.appointmentDetails}>
@@ -1240,30 +1273,53 @@ export default function AppointmentsScreen() {
     }
   }, [user?.uid, language]);
 
-  const handleDelete = (appointment) => {
+  const handleCancelAppointment = (appointment: any) => {
+    const isPaid = appointment.paymentStatus === 'paid' || appointment.isPaid === true;
+
     Alert.alert(
-      uiTexts.deleteAppointment,
-      uiTexts.deleteConfirm,
+      uiTexts.cancelAppointment || 'Cancel Appointment',
+      isPaid
+        ? (uiTexts.cancelPaidConfirm || 'Are you sure you want to cancel this appointment?\n\nPlease note: This is a paid appointment and payments are non-refundable. No refund will be issued upon cancellation.')
+        : (uiTexts.cancelConfirm || 'Are you sure you want to cancel this appointment?'),
       [
-        { text: uiTexts.cancel, style: 'cancel' },
+        { text: uiTexts.keepAppointment || 'Keep Appointment', style: 'cancel' },
         {
-          text: uiTexts.delete,
+          text: isPaid
+            ? (uiTexts.confirmCancelNoRefund || 'Cancel (No Refund)')
+            : (uiTexts.confirmCancel || 'Cancel Appointment'),
           style: 'destructive',
           onPress: async () => {
             try {
-              await deleteDoc(doc(db, 'appointments', appointment.id));
+              await updateDoc(doc(db, 'appointments', appointment.id), {
+                status: 'cancelled',
+                cancelledAt: new Date().toISOString(),
+                cancellationReason: isPaid
+                  ? 'Cancelled by customer (Non-refundable policy)'
+                  : 'Cancelled by customer',
+                updatedAt: serverTimestamp(),
+              });
               await cancelAppointmentReminders(appointment.id);
               if (appointment.shopId && appointment.dateTime && typeof appointment.barberNumber === 'number') {
+                const dateTimeISO = appointment.dateTime instanceof Date
+                  ? appointment.dateTime.toISOString()
+                  : String(appointment.dateTime);
                 await releaseTimeslotChair({
                   shopId: appointment.shopId,
-                  dateTimeISO: appointment.dateTime,
+                  dateTimeISO,
                   chairNumbers: [appointment.barberNumber],
                   slotsToRelease: 1,
                 });
               }
+              toast.success(
+                'Appointment Cancelled',
+                isPaid
+                  ? 'Your appointment has been cancelled. Online payments are non-refundable as per policy.'
+                  : 'Your appointment has been cancelled successfully.'
+              );
               fetchAppointments();
             } catch (error) {
-              toast.error('Error', 'Failed to delete appointment');
+              console.error('Cancel appointment error:', error);
+              toast.error('Cancellation Failed', 'Could not cancel appointment. Please try again.');
             }
           }
         },
@@ -1271,39 +1327,66 @@ export default function AppointmentsScreen() {
     );
   };
 
-  const handleDeleteFamilyBooking = (booking) => {
+  const handleCancelFamilyBooking = (booking: any) => {
+    const isPaid = booking.paymentStatus === 'paid' || booking.isPaid === true;
+
     Alert.alert(
-      uiTexts.deleteAppointment,
-      uiTexts.deleteConfirm,
+      uiTexts.cancelAppointment || 'Cancel Appointment',
+      isPaid
+        ? (uiTexts.cancelPaidConfirm || 'Are you sure you want to cancel this appointment?\n\nPlease note: This is a paid appointment and payments are non-refundable. No refund will be issued upon cancellation.')
+        : (uiTexts.cancelConfirm || 'Are you sure you want to cancel this appointment?'),
       [
-        { text: uiTexts.cancel, style: 'cancel' },
+        { text: uiTexts.keepAppointment || 'Keep Appointment', style: 'cancel' },
         {
-          text: uiTexts.delete,
+          text: isPaid
+            ? (uiTexts.confirmCancelNoRefund || 'Cancel (No Refund)')
+            : (uiTexts.confirmCancel || 'Cancel Appointment'),
           style: 'destructive',
           onPress: async () => {
             try {
-              await deleteDoc(doc(db, 'familybookings', booking.id));
+              await updateDoc(doc(db, 'familybookings', booking.id), {
+                status: 'cancelled',
+                cancelledAt: new Date().toISOString(),
+                cancellationReason: isPaid
+                  ? 'Cancelled by customer (Non-refundable policy)'
+                  : 'Cancelled by customer',
+                updatedAt: serverTimestamp(),
+              });
               await cancelAppointmentReminders(booking.id);
               if (booking.shopId && booking.dateTime) {
                 const chairNumbers = (booking.members || [])
-                  .map((m) => m.barberNumber)
-                  .filter((n) => typeof n === 'number');
+                  .map((m: any) => m.barberNumber)
+                  .filter((n: any) => typeof n === 'number');
+                const dateTimeISO = booking.dateTime instanceof Date
+                  ? booking.dateTime.toISOString()
+                  : String(booking.dateTime);
                 await releaseTimeslotChair({
                   shopId: booking.shopId,
-                  dateTimeISO: booking.dateTime,
+                  dateTimeISO,
                   chairNumbers,
                   slotsToRelease: booking.familySize || chairNumbers.length || 1,
                 });
               }
+              toast.success(
+                'Booking Cancelled',
+                isPaid
+                  ? 'Your family booking has been cancelled. Online payments are non-refundable as per policy.'
+                  : 'Your family booking has been cancelled successfully.'
+              );
               fetchAppointments();
             } catch (error) {
-              toast.error('Error', 'Failed to delete family booking');
+              console.error('Cancel family booking error:', error);
+              toast.error('Cancellation Failed', 'Could not cancel family booking. Please try again.');
             }
           }
         },
       ]
     );
   };
+
+  // Backward-compatible aliases
+  const handleDelete = handleCancelAppointment;
+  const handleDeleteFamilyBooking = handleCancelFamilyBooking;
 
   const handleReschedule = (appointment) => {
     setSelectedAppointment(appointment);

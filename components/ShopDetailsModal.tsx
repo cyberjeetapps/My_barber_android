@@ -140,8 +140,15 @@ export default function ShopDetailsModal({ visible, onClose, shop, services, sel
   const images = [shopImage, ...DUMMY_GALLERY.slice(1, 3)];
 
   const renderServiceTab = () => {
-    const item = selectedService || services[0];
-    if (!item) return null;
+    const mainService = selectedService || services[0];
+
+    if (!mainService) {
+      return (
+        <View style={[styles.tabContent, { paddingVertical: 20, alignItems: 'center' }]}>
+          <Text style={{ color: Colors.textLight }}>No service selected</Text>
+        </View>
+      );
+    }
 
     return (
       <View style={styles.tabContent}>
@@ -151,24 +158,24 @@ export default function ShopDetailsModal({ visible, onClose, shop, services, sel
               <Scissors size={24} color={accentColor} />
             </View>
             <View style={styles.serviceDetailInfo}>
-              <Text style={styles.serviceDetailName}>{item.name}</Text>
+              <Text style={styles.serviceDetailName}>{mainService.name}</Text>
               <Text style={styles.serviceDetailSubtitle} numberOfLines={1}>
-                {item.duration} min {item.description ? `• ${item.description}` : ''}
+                {mainService.duration} min {mainService.description ? `• ${mainService.description}` : ''}
               </Text>
               <View style={styles.serviceDetailBottomRow}>
                 <Star size={14} color={accentColor} fill={accentColor} />
                 <Text style={styles.serviceDetailRating}>4.8</Text>
                 
-                {item.discountedPrice && item.discountedPrice !== item.price ? (
+                {mainService.discountedPrice && mainService.discountedPrice !== mainService.price ? (
                   <>
                     <View style={styles.dotSeparator} />
-                    <Text style={styles.serviceDetailOriginalPrice}>₹{item.price}</Text>
+                    <Text style={styles.serviceDetailOriginalPrice}>₹{mainService.price}</Text>
                   </>
                 ) : null}
                 
                 <View style={styles.dotSeparator} />
                 <Text style={styles.serviceDetailPrice}>
-                  ₹{item.discountedPrice || item.price}
+                  ₹{mainService.discountedPrice || mainService.price}
                 </Text>
               </View>
             </View>
@@ -319,7 +326,7 @@ export default function ShopDetailsModal({ visible, onClose, shop, services, sel
           <DoorOpen size={16} color={accentColor} />
           <Text style={styles.infoSectionTitle}>Our Staff</Text>
         </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.staffScroll}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} nestedScrollEnabled={true} style={styles.staffScroll}>
           {shopStaff.length > 0 ? (
             shopStaff.map(staff => (
               <View key={staff.id} style={styles.staffCard}>
@@ -405,12 +412,19 @@ export default function ShopDetailsModal({ visible, onClose, shop, services, sel
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <View style={styles.container}>
-        <ScrollView style={styles.scrollView} bounces={false} showsVerticalScrollIndicator={false}>
+        <ScrollView 
+          style={styles.scrollView} 
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={true}
+          nestedScrollEnabled={true}
+          keyboardShouldPersistTaps="handled"
+        >
           {/* Header Image Carousel */}
           <View style={styles.headerCarouselContainer}>
             <ScrollView 
               horizontal 
               pagingEnabled 
+              nestedScrollEnabled={true}
               showsHorizontalScrollIndicator={false}
               onMomentumScrollEnd={(e) => {
                 setActiveImageIndex(Math.round(e.nativeEvent.contentOffset.x / width));
@@ -435,9 +449,9 @@ export default function ShopDetailsModal({ visible, onClose, shop, services, sel
               </View>
             </View>
 
-            <View style={styles.imageOverlayGradient} />
+            <View style={styles.imageOverlayGradient} pointerEvents="none" />
             
-            <View style={styles.thumbnailContainer}>
+            <View style={styles.thumbnailContainer} pointerEvents="box-none">
               {images.map((img, idx) => (
                 <View key={idx} style={[styles.thumbnailWrapper, activeImageIndex === idx && styles.thumbnailActive]}>
                   <Image source={{ uri: img }} style={styles.thumbnailImage} />
@@ -495,7 +509,7 @@ export default function ShopDetailsModal({ visible, onClose, shop, services, sel
             </View>
 
             {/* Amenities */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.amenitiesScroll}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} nestedScrollEnabled={true} style={styles.amenitiesScroll}>
               {shop.amenities?.ac && (
                 <View style={styles.amenityChip}>
                   <Thermometer size={14} color={Colors.textLight} />
@@ -560,7 +574,7 @@ export default function ShopDetailsModal({ visible, onClose, shop, services, sel
                   <Text style={[styles.tabButtonText, activeTab === tab && styles.tabButtonTextActive]}>{tab}</Text>
                 </TouchableOpacity>
               ))}
-              <Animated.View style={[styles.tabIndicator, indicatorStyle, { backgroundColor: accentColor }]} />
+              <Animated.View style={[styles.tabIndicator, indicatorStyle, { backgroundColor: accentColor }]} pointerEvents="none" />
             </View>
 
             {activeTab === 'Service' && renderServiceTab()}
@@ -600,10 +614,16 @@ export default function ShopDetailsModal({ visible, onClose, shop, services, sel
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    height: '100%',
+    width: '100%',
     backgroundColor: Colors.background,
   },
   scrollView: {
     flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 30,
   },
   headerCarouselContainer: {
     height: 300,
@@ -821,7 +841,7 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   tabContent: {
-    paddingBottom: 100,
+    paddingBottom: 24,
   },
   serviceDetailCard: {
     flexDirection: 'row',
@@ -878,28 +898,28 @@ const styles = StyleSheet.create({
   serviceDetailPrice: {
     color: Colors.text,
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: 'bold',
   },
   
   // Reviews
   reviewSummaryCard: {
-    flexDirection: 'row',
     backgroundColor: Colors.cardBackground,
-    padding: 16,
-    borderRadius: 12,
+    borderRadius: 16,
+    padding: 20,
+    flexDirection: 'row',
     marginBottom: 20,
   },
   reviewSummaryLeft: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingRight: 16,
+    paddingRight: 20,
     borderRightWidth: 1,
-    borderRightColor: '#2A2A2A',
+    borderRightColor: Colors.borderLight,
   },
   reviewRatingBig: {
-    fontSize: 48,
+    fontSize: 40,
     fontWeight: 'bold',
-    lineHeight: 52,
+    marginBottom: 4,
   },
   starsRow: {
     flexDirection: 'row',
@@ -911,7 +931,7 @@ const styles = StyleSheet.create({
   },
   reviewSummaryRight: {
     flex: 1,
-    paddingLeft: 16,
+    paddingLeft: 20,
     justifyContent: 'center',
   },
   progressRow: {
@@ -922,48 +942,50 @@ const styles = StyleSheet.create({
   progressText: {
     color: Colors.textLight,
     fontSize: 10,
-    width: 10,
+    width: 12,
   },
   progressBarBg: {
     flex: 1,
-    height: 4,
-    backgroundColor: Colors.border,
-    borderRadius: 2,
+    height: 6,
+    backgroundColor: Colors.borderLight,
+    borderRadius: 3,
     marginHorizontal: 8,
+    overflow: 'hidden',
   },
   progressBarFill: {
     height: '100%',
-    borderRadius: 2,
+    borderRadius: 3,
   },
   progressCount: {
     color: Colors.textLight,
     fontSize: 10,
-    width: 20,
+    width: 24,
     textAlign: 'right',
   },
   reviewCard: {
     backgroundColor: Colors.cardBackground,
+    borderRadius: 16,
     padding: 16,
-    borderRadius: 12,
     marginBottom: 12,
   },
   reviewHeader: {
     flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 12,
   },
   reviewerAvatar: {
     width: 40,
     height: 40,
     borderRadius: 20,
+    marginRight: 12,
   },
   reviewerInfo: {
-    marginLeft: 12,
-    justifyContent: 'center',
+    flex: 1,
   },
   reviewerName: {
     color: Colors.text,
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: 'bold',
     marginBottom: 2,
   },
   reviewStars: {
@@ -976,20 +998,20 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   reviewText: {
-    color: Colors.textLight,
+    color: Colors.text,
     fontSize: 13,
-    lineHeight: 20,
-    marginBottom: 12,
+    lineHeight: 18,
+    marginBottom: 10,
   },
   reviewTagsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
   },
   reviewTag: {
-    backgroundColor: Colors.borderLight,
+    backgroundColor: Colors.background,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 4,
+    borderRadius: 6,
     marginRight: 6,
     marginBottom: 6,
   },
@@ -998,11 +1020,11 @@ const styles = StyleSheet.create({
     fontSize: 10,
   },
   
-  // Info
+  // Info Tab
   infoSection: {
     backgroundColor: Colors.cardBackground,
+    borderRadius: 16,
     padding: 16,
-    borderRadius: 12,
     marginBottom: 16,
   },
   infoHeaderRow: {
@@ -1019,7 +1041,9 @@ const styles = StyleSheet.create({
   hoursRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
   },
   hoursDay: {
     color: Colors.textLight,
@@ -1030,23 +1054,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   staffScroll: {
-    marginHorizontal: -4,
+    marginHorizontal: -8,
   },
   staffCard: {
     width: 100,
-    marginHorizontal: 4,
-    backgroundColor: Colors.borderLight,
-    borderRadius: 8,
-    padding: 8,
     alignItems: 'center',
+    marginHorizontal: 8,
   },
   staffIconContainer: {
     width: 50,
     height: 50,
     borderRadius: 25,
-    marginBottom: 8,
     justifyContent: 'center',
     alignItems: 'center',
+    marginBottom: 8,
   },
   staffInfo: {
     alignItems: 'center',
@@ -1115,12 +1136,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   
-  // Bottom Bar
+  // Bottom Bar (Fixed Flex Layout with Elevation)
   bottomBookingBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
     backgroundColor: Colors.cardBackground,
     borderTopWidth: 1,
     borderTopColor: Colors.borderLight,
@@ -1128,7 +1145,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 16,
+    paddingTop: 14,
+    elevation: 16,
+    zIndex: 999,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
   },
   bottomBarLeft: {
     flex: 1,

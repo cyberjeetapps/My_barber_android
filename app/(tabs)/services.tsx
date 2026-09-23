@@ -1682,24 +1682,37 @@ const handleSubmitBooking = async () => {
         }
       }
 
-      // 2️⃣ Create Cashfree Order via backend
+      // 2️⃣ Create Cashfree Order via backend (10%/90% split handled on server)
       const cleanPhone = (userPhone || '').replace(/[^0-9]/g, '').slice(-10) || '9999999999';
       const orderReceipt = `bk_${Date.now()}`;
+      const serviceTargetId = selectedService.originalServiceId || selectedService.id;
+
+      let userToken = '';
+      try {
+        if (user) {
+          userToken = await user.getIdToken();
+        }
+      } catch (tokenErr) {
+        console.warn('Could not retrieve user ID token:', tokenErr);
+      }
 
       const orderResponse = await fetch(`${CASHFREE_BACKEND_URL}/create-order`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Accept: 'application/json'
+          Accept: 'application/json',
+          ...(userToken ? { Authorization: `Bearer ${userToken}` } : {})
         },
         body: JSON.stringify({
+          serviceId: serviceTargetId,
+          bookingId: orderReceipt,
           amount: totalPriceCalculated,
           currency: 'INR',
           receipt: orderReceipt,
           notes: {
             customer_id: user.uid,
             phone: cleanPhone,
-            service_id: selectedService.originalServiceId || selectedService.id,
+            service_id: serviceTargetId,
             service_name: selectedService.name,
             shop_id: selectedService.shopId,
             user_id: user.uid
@@ -1721,7 +1734,11 @@ const handleSubmitBooking = async () => {
       // 3️⃣ Open Cashfree Checkout Sheet
       let checkoutResult: any;
       try {
-        checkoutResult = await openCashfreeCheckout(orderData.paymentSessionId, orderData.orderId);
+        checkoutResult = await openCashfreeCheckout(
+          orderData.paymentSessionId,
+          orderData.orderId,
+          orderData.environment
+        );
       } catch (checkoutErr: any) {
         console.log('Cashfree payment cancelled or failed:', checkoutErr);
         const isCancelled = checkoutErr?.code === 'PAYMENT_CANCELLED' || 

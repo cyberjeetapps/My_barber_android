@@ -40,16 +40,18 @@ import {
   AlertCircle,
   Key,
   Award,
+  RefreshCw,
 } from 'lucide-react-native';
 
-// 👉 Use your live backend URL or local URL depending on environment
-const BACKEND_URL = __DEV__ ? 'https://backend.vps.mybarber.co.in' : 'https://my-barber-backend.onrender.com';
+// 👉 Live Backend URL for owner management and Cashfree onboarding
+const BACKEND_URL = 'https://backend.vps.mybarber.co.in';
 
 export default function AdminOwnersList() {
   const router = useRouter();
   const [owners, setOwners] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [registering, setRegistering] = useState<any>(null);
+  const [syncing, setSyncing] = useState<any>(null);
   const [showForm, setShowForm] = useState(false);
   const [editOwnerId, setEditOwnerId] = useState<any>(null);
   const [creatingAuth, setCreatingAuth] = useState(false);
@@ -200,30 +202,27 @@ export default function AdminOwnersList() {
     }
   };
 
-  // 🔑 Register owner with Razorpay for split payments
-  const registerOwnerWithRazorpay = async (owner) => {
+  // 🔑 Onboard owner with Cashfree for Easy Split (90% payout)
+  const onboardOwnerWithCashfree = async (owner: any) => {
     try {
       setRegistering(owner.id);
 
       if (!owner.bankAccountNumber || !owner.bankIfscCode || !owner.bankAccountHolderName) {
-        Alert.alert('Missing Details', 'Owner must have full bank details.');
+        Alert.alert('Missing Details', 'Owner must have complete bank details (Account Number, IFSC, Account Holder Name).');
         return;
       }
 
-      const response = await fetch(`${BACKEND_URL}/register-owner`, {
+      // Get admin token for authorized call
+      if (!auth.currentUser) {
+        throw new Error('Not authenticated');
+      }
+      const adminToken = await auth.currentUser.getIdToken();
+
+      const response = await fetch(`${BACKEND_URL}/api/owners/${owner.id}/onboard-cashfree`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ownerId: owner.id,
-          ownerData: {
-            name: owner.name,
-            phoneNumber: owner.phoneNumber,
-            email: owner.email || `${owner.phoneNumber}@mybarber.com`,
-            bankAccountHolderName: owner.bankAccountHolderName,
-            bankIfscCode: owner.bankIfscCode,
-            bankAccountNumber: owner.bankAccountNumber,
-            bankAccountName: owner.bankAccountName,
-          },
+          adminToken
         }),
       });
 
@@ -231,20 +230,40 @@ export default function AdminOwnersList() {
 
       if (result.success) {
         await updateDoc(doc(db, 'barberowner', owner.id), {
-          razorpayAccount: result.razorpayAccount,
-          razorpayRegistered: true,
+          cashfreeVendorId: result.vendorId,
+          cashfreeVendorStatus: result.vendorStatus || 'ACTIVE',
+          cashfreeOnboardingStatus: 'COMPLETED',
           updatedAt: new Date().toISOString(),
         });
-        setSuccessMessage('Owner successfully registered with Razorpay!');
+        setSuccessMessage('Owner successfully onboarded to Cashfree Easy Split!');
         fetchOwners();
       } else {
-        throw new Error(result.message || 'Registration failed');
+        throw new Error(result.message || 'Cashfree onboarding failed');
       }
     } catch (error: any) {
-      console.error('Razorpay registration failed:', error);
-      Alert.alert('Registration Failed', error.message || 'Please check bank details.');
+      console.error('Cashfree onboarding failed:', error);
+      Alert.alert('Cashfree Onboarding Failed', error.message || 'Please check bank details.');
     } finally {
       setRegistering(null);
+    }
+  };
+
+  // 🔄 Sync latest live status from Cashfree
+  const syncCashfreeStatus = async (owner: any) => {
+    try {
+      setSyncing(owner.id);
+      const response = await fetch(`${BACKEND_URL}/api/owners/${owner.id}/cashfree-status`);
+      const result = await response.json();
+      if (result.success) {
+        setSuccessMessage(`Cashfree Status: ${result.status}`);
+        fetchOwners();
+      } else {
+        Alert.alert('Status Check', result.message || 'Unable to fetch status');
+      }
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    } finally {
+      setSyncing(null);
     }
   };
 
@@ -377,7 +396,7 @@ export default function AdminOwnersList() {
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>Barber Owners</Text>
           <Text style={styles.headerSubtitle}>
-            Manage shop owners & Razorpay payouts
+            Manage shop owners & Cashfree Easy Split (10%/90%)
           </Text>
         </View>
 
@@ -592,26 +611,58 @@ export default function AdminOwnersList() {
                       <Text style={styles.authBadgeText}>Login Enabled</Text>
                     </View>
                   )}
-                  {owner.razorpayRegistered && (
-                    <View style={styles.razorpayBadge}>
+                  {owner.cashfreeVendorStatus === 'ACTIVE' ? (
+                    <View style={styles.cashfreeActiveBadge}>
                       <ShieldCheck size={12} color={Colors.success} />
-                      <Text style={styles.razorpayBadgeText}>Razorpay Registered</Text>
+                      <Text style={styles.cashfreeActiveBadgeText}>Cashfree: Active</Text>
+                    </View>
+                  ) : owner.cashfreeVendorStatus === 'IN_BANK_VALIDATION' ? (
+                    <View style={[styles.cashfreePendingBadge, { backgroundColor: '#E0F2FE' }]}>
+                      <AlertCircle size={12} color="#0284C7" />
+                      <Text style={[styles.cashfreePendingBadgeText, { color: '#0284C7' }]}>Cashfree: Validating</Text>
+                    </View>
+                  ) : owner.cashfreeVendorStatus === 'PENDING' ? (
+                    <View style={styles.cashfreePendingBadge}>
+                      <AlertCircle size={12} color={Colors.warning} />
+                      <Text style={styles.cashfreePendingBadgeText}>Cashfree: Pending</Text>
+                    </View>
+                  ) : owner.cashfreeVendorStatus === 'FAILED' ? (
+                    <View style={styles.cashfreeFailedBadge}>
+                      <AlertCircle size={12} color={Colors.error} />
+                      <Text style={styles.cashfreeFailedBadgeText}>Cashfree: Failed</Text>
+                    </View>
+                  ) : (
+                    <View style={styles.cashfreeNotOnboardedBadge}>
+                      <AlertCircle size={12} color={Colors.textLight} />
+                      <Text style={styles.cashfreeNotOnboardedBadgeText}>Cashfree: Not Onboarded</Text>
                     </View>
                   )}
                 </View>
               </View>
 
               <View style={styles.ownerActions}>
-                {!owner.razorpayRegistered && (
+                {(!owner.cashfreeVendorId || owner.cashfreeVendorStatus === 'FAILED') ? (
                   <TouchableOpacity
-                    style={[styles.iconButton, styles.razorpayButton]}
-                    onPress={() => registerOwnerWithRazorpay(owner)}
+                    style={[styles.iconButton, styles.cashfreeButton]}
+                    onPress={() => onboardOwnerWithCashfree(owner)}
                     disabled={registering === owner.id}
                   >
                     {registering === owner.id ? (
                       <ActivityIndicator size="small" color={Colors.primary} />
                     ) : (
                       <Wallet size={16} color={Colors.primary} />
+                    )}
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    style={[styles.iconButton, { backgroundColor: '#E0F2FE' }]}
+                    onPress={() => syncCashfreeStatus(owner)}
+                    disabled={syncing === owner.id}
+                  >
+                    {syncing === owner.id ? (
+                      <ActivityIndicator size="small" color={Colors.primary} />
+                    ) : (
+                      <RefreshCw size={14} color={Colors.primary} />
                     )}
                   </TouchableOpacity>
                 )}
@@ -684,13 +735,17 @@ export default function AdminOwnersList() {
                 <Text style={styles.detailText}>Joined: {formatDate(owner.createdAt)}</Text>
               </View>
 
-              {!owner.razorpayRegistered && owner.bankAccountNumber && (
-                <View style={styles.registrationPrompt}>
+              {(!owner.cashfreeVendorId || owner.cashfreeVendorStatus === 'FAILED') && owner.bankAccountNumber && (
+                <TouchableOpacity
+                  style={styles.registrationPrompt}
+                  onPress={() => onboardOwnerWithCashfree(owner)}
+                  disabled={registering === owner.id}
+                >
                   <AlertCircle size={14} color={Colors.warning} />
                   <Text style={styles.registrationPromptText}>
-                    Register with Razorpay to enable automatic payouts
+                    {registering === owner.id ? 'Connecting with Cashfree...' : 'Register with Cashfree for automatic 90% payouts'}
                   </Text>
-                </View>
+                </TouchableOpacity>
               )}
             </View>
           </View>
@@ -937,7 +992,7 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     marginLeft: 4,
   },
-  razorpayBadge: {
+  cashfreeActiveBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: `${Colors.success}20`,
@@ -946,10 +1001,55 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignSelf: 'flex-start',
   },
-  razorpayBadgeText: {
+  cashfreeActiveBadgeText: {
     fontSize: 10,
     fontFamily: 'Poppins-SemiBold',
     color: Colors.success,
+    marginLeft: 4,
+  },
+  cashfreePendingBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: `${Colors.warning}20`,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+  },
+  cashfreePendingBadgeText: {
+    fontSize: 10,
+    fontFamily: 'Poppins-SemiBold',
+    color: Colors.warning,
+    marginLeft: 4,
+  },
+  cashfreeFailedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: `${Colors.error}20`,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+  },
+  cashfreeFailedBadgeText: {
+    fontSize: 10,
+    fontFamily: 'Poppins-SemiBold',
+    color: Colors.error,
+    marginLeft: 4,
+  },
+  cashfreeNotOnboardedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EEEEEE',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+  },
+  cashfreeNotOnboardedBadgeText: {
+    fontSize: 10,
+    fontFamily: 'Poppins-Medium',
+    color: Colors.textLight,
     marginLeft: 4,
   },
   ownerActions: {
@@ -964,8 +1064,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  razorpayButton: {
-    backgroundColor: '#E3F2FD',
+  cashfreeButton: {
+    backgroundColor: '#E8F5E9',
   },
   deleteButton: {
     backgroundColor: Colors.errorLight,

@@ -208,11 +208,24 @@ export default function AdminLogin() {
 
       router.replace('/admin/dashboard');
     } catch (error: any) {
-      let errorMessage = 'Invalid credentials or unauthorized access';
-      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
-        errorMessage = 'Invalid email or password';
-      } else if (error.message) {
-        errorMessage = error.message;
+      console.error('Admin login error:', error);
+      let errorMessage = 'Invalid email or password. Please try again.';
+
+      if (error.message === 'Unauthorized access') {
+        errorMessage = 'Access restricted. You do not have administrator permissions.';
+      } else if (
+        error.code === 'auth/invalid-credential' ||
+        error.code === 'auth/user-not-found' ||
+        error.code === 'auth/wrong-password' ||
+        error.code === 'auth/invalid-email'
+      ) {
+        errorMessage = 'Invalid email or password. Please try again.';
+      } else if (error.code === 'auth/too-many-requests') {
+        errorMessage = 'Too many unsuccessful attempts. Please wait a few moments before trying again.';
+      } else if (error.code === 'auth/network-request-failed') {
+        errorMessage = 'Network connection issue. Please check your internet connection and try again.';
+      } else {
+        errorMessage = 'Unable to sign in. Please verify your credentials and try again.';
       }
       setError(errorMessage);
     } finally {

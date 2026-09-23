@@ -15,11 +15,33 @@ export const firebaseConfig = {
   measurementId: "G-8BJNE1EQM5"
 };
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
+
 const app = initializeApp(firebaseConfig);
 
 // Initialize services
 const functions = getFunctions(app);
-const auth = getAuth(app);
+
+let auth: any;
+if (Platform.OS === 'web') {
+  auth = getAuth(app);
+} else {
+  try {
+    // @ts-ignore
+    const { initializeAuth, getReactNativePersistence } = require('firebase/auth');
+    if (initializeAuth && getReactNativePersistence) {
+      auth = initializeAuth(app, {
+        persistence: getReactNativePersistence(AsyncStorage),
+      });
+    } else {
+      auth = getAuth(app);
+    }
+  } catch (e) {
+    auth = getAuth(app);
+  }
+}
+
 const db = getFirestore(app);
 const storage = getStorage(app);
 

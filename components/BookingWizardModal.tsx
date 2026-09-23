@@ -123,7 +123,7 @@ export default function BookingWizardModal({
       <Text style={styles.stepTitle}>Choose Your Barber</Text>
       <Text style={styles.stepSubtitle}>Select a barber or let us assign the best available</Text>
       
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
+      <ScrollView showsVerticalScrollIndicator={false} nestedScrollEnabled={true} contentContainerStyle={{ flexGrow: 1, paddingBottom: 100 }}>
         <TouchableOpacity
           style={[
             styles.barberCard,
@@ -187,7 +187,7 @@ export default function BookingWizardModal({
           <Animated.View entering={SlideInRight} style={styles.stepContent}>
             <Text style={styles.stepTitle}>Date & Time</Text>
             <Text style={styles.stepSubtitle}>Select when you want to visit</Text>
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
+            <ScrollView showsVerticalScrollIndicator={false} nestedScrollEnabled={true} contentContainerStyle={{ flexGrow: 1, paddingBottom: 100 }}>
               {renderDateAndTime()}
             </ScrollView>
           </Animated.View>
@@ -197,7 +197,7 @@ export default function BookingWizardModal({
           <Animated.View entering={SlideInRight} style={styles.stepContent}>
             <Text style={styles.stepTitle}>Services</Text>
             <Text style={styles.stepSubtitle}>Review your selected services</Text>
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
+            <ScrollView showsVerticalScrollIndicator={false} nestedScrollEnabled={true} contentContainerStyle={{ flexGrow: 1, paddingBottom: 100 }}>
               {renderServices()}
             </ScrollView>
           </Animated.View>
@@ -207,7 +207,7 @@ export default function BookingWizardModal({
           <Animated.View entering={SlideInRight} style={styles.stepContent}>
             <Text style={styles.stepTitle}>Summary</Text>
             <Text style={styles.stepSubtitle}>Review and confirm your booking</Text>
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 180 }}>
+            <ScrollView showsVerticalScrollIndicator={false} nestedScrollEnabled={true} contentContainerStyle={{ flexGrow: 1, paddingBottom: 180 }}>
               {renderSummary()}
             </ScrollView>
           </Animated.View>

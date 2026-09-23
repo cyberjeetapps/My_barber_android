@@ -1,7 +1,7 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
-import { User, onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
+import { User, onAuthStateChanged, signOut as firebaseSignOut, signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '@/config/firebase';
 import { useRouter, usePathname } from 'expo-router';
@@ -51,6 +51,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
+    let isMounted = true;
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       // Don't process auth state changes during logout
       if (isLoggingOut) return;
@@ -68,8 +70,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
               ...adminData,
               role: 'admin',
             } as AppUser;
-            setUser(updatedUser);
-            setIsAdmin(true);
+            if (isMounted) {
+              setUser(updatedUser);
+              setIsAdmin(true);
+            }
             return;
           }
 
@@ -84,50 +88,90 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
               ...ownerData,
               role: 'owner',
             } as AppUser;
-            setUser(ownerUser);
-            setOwner(ownerUser);
+            if (isMounted) {
+              setUser(ownerUser);
+              setOwner(ownerUser);
+            }
           } else {
             // For regular users, ensure we have their profile data
             const userRef = doc(db, 'users', firebaseUser.uid);
             const userSnap = await getDoc(userRef);
             
-            if (userSnap.exists()) {
-              setUser({
-                ...firebaseUser,
-                ...userSnap.data(),
-                role: 'user',
-              } as AppUser);
-            } else {
-              setUser({
-                ...firebaseUser,
-                role: 'user',
-              } as AppUser);
+            if (isMounted) {
+              if (userSnap.exists()) {
+                setUser({
+                  ...firebaseUser,
+                  ...userSnap.data(),
+                  role: 'user',
+                } as AppUser);
+              } else {
+                setUser({
+                  ...firebaseUser,
+                  role: 'user',
+                } as AppUser);
+              }
             }
           }
-          setIsAdmin(false);
+          if (isMounted) {
+            setIsAdmin(false);
+          }
         } else {
-          setUser(null);
-          setIsAdmin(false);
-          setOwner(null);
-          
-          // Only redirect if not already on a login page and not during logout
-          if (!isLoggingOut) {
-            const currentPath = pathname || '';
-            if (!currentPath.includes('/login') && !currentPath.includes('/owner/login')) {
-              router.replace('/login');
+          // Attempt silent session restoration from saved session before redirecting to login
+          let restored = false;
+          try {
+            const rawSession = Platform.OS === 'web'
+              ? localStorage.getItem('user_session')
+              : await SecureStore.getItemAsync('user_session');
+
+            if (rawSession) {
+              const { phoneNumber } = JSON.parse(rawSession);
+              if (phoneNumber) {
+                const email = `${phoneNumber}@twilio.user`;
+                const password = phoneNumber;
+                await signInWithEmailAndPassword(auth, email, password);
+                restored = true;
+                return; // onAuthStateChanged will fire again with the restored firebaseUser
+              }
+            }
+          } catch (restoreErr) {
+            console.log('Silent session check skipped or failed:', restoreErr);
+          }
+
+          if (!restored && isMounted) {
+            setUser(null);
+            setIsAdmin(false);
+            setOwner(null);
+            
+            // Only redirect if not already on a login page, not during logout, and not on /return
+            if (!isLoggingOut) {
+              const currentPath = pathname || '';
+              if (
+                !currentPath.includes('/login') && 
+                !currentPath.includes('/owner/login') &&
+                !currentPath.includes('/return')
+              ) {
+                router.replace('/login');
+              }
             }
           }
         }
       } catch (error) {
         console.error('Error fetching user data:', error);
-        setUser(firebaseUser as AppUser);
-        setIsAdmin(false);
+        if (isMounted) {
+          setUser(firebaseUser as AppUser);
+          setIsAdmin(false);
+        }
       } finally {
-        setIsLoading(false);
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
   }, [isLoggingOut]);
 
   const logout = async () => {

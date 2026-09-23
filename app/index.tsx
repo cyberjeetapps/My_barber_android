@@ -1,25 +1,10 @@
-import { useEffect } from 'react';
 import { StyleSheet, Text, View, ActivityIndicator } from 'react-native';
 import { Redirect } from 'expo-router';
-import { onAuthStateChanged } from 'firebase/auth';
-import { auth } from '@/config/firebase';
 import { useAuth } from '@/context/auth';
 import Colors from '@/constants/Colors';
-// App.js or your main navigator
-
-
 
 export default function Index() {
-  const { user, setUser, isLoading } = useAuth();
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
-      // Note: isLoading is managed by AuthProvider, not here
-    });
-
-    return () => unsubscribe();
-  }, []);
+  const { user, isLoading } = useAuth();
 
   if (isLoading) {
     return (

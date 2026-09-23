@@ -73,6 +73,9 @@ export default function RootLayout() {
           router.push('/owner/login');
         } else if (path.startsWith('owner')) {
           router.push('/owner/login');
+        } else if (path.startsWith('payment') || path.startsWith('return')) {
+          console.log('Payment return received in custom scheme:', path);
+          router.replace('/(tabs)/appointments');
         }
       } else if (url.includes('mybarber.co.in')) {
         const urlObj = new URL(url);
@@ -87,6 +90,9 @@ export default function RootLayout() {
           router.push('/owner/login');
         } else if (path.startsWith('/owner')) {
           router.push('/owner/login');
+        } else if (path.startsWith('/return') || path.startsWith('/payment')) {
+          console.log('Payment return received in web URL:', path);
+          router.replace('/(tabs)/appointments');
         }
       }
     };
