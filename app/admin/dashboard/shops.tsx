@@ -29,6 +29,7 @@ import {
   ChevronDown,
   ChevronUp,
   Check,
+  Globe,
 } from 'lucide-react-native';
 import {
   collection,
@@ -81,6 +82,7 @@ export default function ShopsManagement() {
   const [editShopId, setEditShopId] = useState<string | null>(null);
   const [previousOwnerId, setPreviousOwnerId] = useState<string | null>(null);
   const [isOwnerDropdownOpen, setIsOwnerDropdownOpen] = useState(false);
+  const [isCountryDropdownOpen, setIsCountryDropdownOpen] = useState(false);
   const [geocodingError, setGeocodingError] = useState<string | null>(null);
   const [newShop, setNewShop] = useState<Omit<Shop, 'id'>>({
     shopName: '',
@@ -453,6 +455,7 @@ export default function ShopsManagement() {
     setPreviousOwnerId(null);
     setEditShopId(null);
     setIsOwnerDropdownOpen(false);
+    setIsCountryDropdownOpen(false);
     setShowAddForm(false);
   };
 
@@ -521,6 +524,7 @@ export default function ShopsManagement() {
       capacity: shop.capacity || 4,
     });
     setIsOwnerDropdownOpen(false);
+    setIsCountryDropdownOpen(false);
     setShowAddForm(true);
   };
 
@@ -536,7 +540,20 @@ export default function ShopsManagement() {
   // Constants
   const businessTypes = ['Salon', 'Spa', 'Barber', 'Nail Salon', 'Other'];
   const genders = ['Men', 'Women', 'Unisex'];
-  const countries = ['India', 'USA', 'UK', 'Canada', 'Australia', 'UAE'];
+  const countries = [
+    'India',
+    'United States',
+    'United Kingdom',
+    'Canada',
+    'Australia',
+    'United Arab Emirates',
+    'Singapore',
+    'Saudi Arabia',
+    'Malaysia',
+    'Germany',
+    'France',
+    'Other',
+  ];
   const daysOfWeek = [
     'Monday',
     'Tuesday',
@@ -608,7 +625,10 @@ export default function ShopsManagement() {
                       <Text style={styles.inputLabel}>Owner *</Text>
                       <TouchableOpacity
                         style={styles.dropdownButton}
-                        onPress={() => setIsOwnerDropdownOpen(!isOwnerDropdownOpen)}
+                        onPress={() => {
+                          setIsOwnerDropdownOpen(!isOwnerDropdownOpen);
+                          setIsCountryDropdownOpen(false);
+                        }}
                         activeOpacity={0.7}
                       >
                         <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
@@ -854,41 +874,68 @@ export default function ShopsManagement() {
                     </View>
                     <View style={[styles.inputContainer, { flex: 0.4 }]}>
                       <Text style={styles.inputLabel}>Country *</Text>
-                      <TextInput
-                        style={styles.input}
-                        value={newShop.country}
-                        onChangeText={(text) =>
-                          setNewShop({ ...newShop, country: text })
-                        }
-                        placeholder="e.g. India"
-                      />
-                      <View style={[styles.chipsContainer, { marginTop: 6 }]}>
-                        {['India', 'USA', 'UAE', 'UK'].map((c) => {
-                          const isSelected =
-                            newShop.country?.toLowerCase() === c.toLowerCase();
-                          return (
-                            <TouchableOpacity
-                              key={c}
-                              style={[
-                                styles.chipButtonSmall,
-                                isSelected && styles.chipButtonSmallSelected,
-                              ]}
-                              onPress={() =>
-                                setNewShop({ ...newShop, country: c })
-                              }
-                            >
-                              <Text
-                                style={[
-                                  styles.chipTextSmall,
-                                  isSelected && styles.chipTextSmallSelected,
-                                ]}
-                              >
-                                {c}
-                              </Text>
-                            </TouchableOpacity>
-                          );
-                        })}
-                      </View>
+                      <TouchableOpacity
+                        style={styles.dropdownButton}
+                        onPress={() => {
+                          setIsCountryDropdownOpen(!isCountryDropdownOpen);
+                          setIsOwnerDropdownOpen(false);
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 4 }}>
+                          <Globe size={16} color={Colors.primary} style={{ marginRight: 6 }} />
+                          <Text
+                            style={[
+                              styles.dropdownButtonText,
+                              !newShop.country && { color: Colors.textLight },
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {newShop.country || 'Select Country'}
+                          </Text>
+                        </View>
+                        {isCountryDropdownOpen ? (
+                          <ChevronUp size={18} color={Colors.text} />
+                        ) : (
+                          <ChevronDown size={18} color={Colors.text} />
+                        )}
+                      </TouchableOpacity>
+
+                      {isCountryDropdownOpen && (
+                        <View style={[styles.dropdownMenu, { maxHeight: 200 }]}>
+                          <ScrollView nestedScrollEnabled showsVerticalScrollIndicator>
+                            {countries.map((c) => {
+                              const isSelected =
+                                newShop.country?.toLowerCase() === c.toLowerCase();
+                              return (
+                                <TouchableOpacity
+                                  key={c}
+                                  style={[
+                                    styles.dropdownMenuItem,
+                                    isSelected && styles.dropdownMenuItemSelected,
+                                  ]}
+                                  onPress={() => {
+                                    setNewShop({ ...newShop, country: c });
+                                    setIsCountryDropdownOpen(false);
+                                  }}
+                                >
+                                  <Text
+                                    style={[
+                                      styles.dropdownMenuItemText,
+                                      isSelected && styles.dropdownMenuItemTextSelected,
+                                    ]}
+                                  >
+                                    {c}
+                                  </Text>
+                                  {isSelected && (
+                                    <Check size={16} color={Colors.primary} />
+                                  )}
+                                </TouchableOpacity>
+                              );
+                            })}
+                          </ScrollView>
+                        </View>
+                      )}
                     </View>
                   </View>
 
