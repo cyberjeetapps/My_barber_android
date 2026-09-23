@@ -142,16 +142,20 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             setIsAdmin(false);
             setOwner(null);
             
-            // Only redirect if not already on a login page, not during logout, and not on /return
+            // Only redirect to login for explicitly protected admin and owner dashboards.
+            // NEVER kick the user to /login when they are on customer routes,
+            // in the middle of booking (/services), or browsing tabs (/(tabs)).
             if (!isLoggingOut) {
               const currentPath = pathname || '';
-              if (
-                !currentPath.includes('/login') && 
-                !currentPath.includes('/owner/login') &&
-                !currentPath.includes('/return')
-              ) {
-                router.replace('/login');
+              const isProtectedAdminRoute = currentPath.startsWith('/admin') && !currentPath.includes('/admin/login');
+              const isProtectedOwnerRoute = currentPath.startsWith('/owner') && !currentPath.includes('/owner/login');
+
+              if (isProtectedAdminRoute) {
+                router.replace('/admin/login');
+              } else if (isProtectedOwnerRoute) {
+                router.replace('/owner/login');
               }
+              // Customer routes (/(tabs), /services, /return, etc.) are NEVER interrupted or kicked to /login.
             }
           }
         }

@@ -1,18 +1,78 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ActivityIndicator, Platform, Linking } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { CheckCircle2, ArrowRight } from 'lucide-react-native';
+import { CheckCircle2, AlertCircle, ArrowRight, ArrowLeft } from 'lucide-react-native';
 import Colors from '@/constants/Colors';
+
+const BACKEND_URL = 'https://backend.vps.mybarber.co.in';
 
 export default function PaymentReturnScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ order_id?: string }>();
   const orderId = params.order_id || '';
+  
+  const [isVerifying, setIsVerifying] = useState(true);
+  const [isSuccess, setIsSuccess] = useState<boolean | null>(null);
+  const [statusMessage, setStatusMessage] = useState('');
   const [countdown, setCountdown] = useState(3);
 
+  // 1️⃣ Verify payment status directly with backend
   useEffect(() => {
-    // If in mobile browser / web, attempt to open the app via deep link
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    let isMounted = true;
+
+    async function checkPayment() {
+      if (!orderId) {
+        if (isMounted) {
+          setIsVerifying(false);
+          setIsSuccess(false);
+          setStatusMessage('No order identifier was found.');
+        }
+        return;
+      }
+
+      try {
+        const response = await fetch(`${BACKEND_URL}/verify-payment`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ order_id: orderId })
+        });
+
+        const result = await response.json();
+        console.log('Return screen payment verification:', result);
+
+        if (!isMounted) return;
+
+        if (result && result.success && result.paymentStatus === 'SUCCESS') {
+          setIsSuccess(true);
+          setStatusMessage('Your payment has been processed successfully.');
+        } else {
+          setIsSuccess(false);
+          const errorMsg = result?.message || 'Payment was unsuccessful or cancelled.';
+          setStatusMessage(errorMsg);
+        }
+      } catch (err: any) {
+        console.error('Error verifying payment on return screen:', err);
+        if (isMounted) {
+          setIsSuccess(false);
+          setStatusMessage('Unable to verify payment status with the gateway.');
+        }
+      } finally {
+        if (isMounted) {
+          setIsVerifying(false);
+        }
+      }
+    }
+
+    checkPayment();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [orderId]);
+
+  // 2️⃣ Handle web deep linking for success
+  useEffect(() => {
+    if (isSuccess && Platform.OS === 'web' && typeof window !== 'undefined') {
       const appUrl = `mybarberapp://payment?order_id=${encodeURIComponent(orderId)}`;
       const timer = setTimeout(() => {
         try {
@@ -21,21 +81,23 @@ export default function PaymentReturnScreen() {
           console.log('Could not open deep link:', e);
         }
       }, 1000);
-
       return () => clearTimeout(timer);
     }
-  }, [orderId]);
+  }, [isSuccess, orderId]);
 
+  // 3️⃣ Countdown for successful payments
   useEffect(() => {
-    if (countdown <= 0) {
-      handleContinue();
-      return;
+    if (isSuccess) {
+      if (countdown <= 0) {
+        handleGoToAppointments();
+        return;
+      }
+      const timer = setTimeout(() => setCountdown(c => c - 1), 1000);
+      return () => clearTimeout(timer);
     }
-    const timer = setTimeout(() => setCountdown(c => c - 1), 1000);
-    return () => clearTimeout(timer);
-  }, [countdown]);
+  }, [isSuccess, countdown]);
 
-  const handleContinue = () => {
+  const handleGoToAppointments = () => {
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
       const appUrl = `mybarberapp://payment?order_id=${encodeURIComponent(orderId)}`;
       window.location.href = appUrl;
@@ -44,40 +106,87 @@ export default function PaymentReturnScreen() {
     }
   };
 
+  const handleBackToBooking = () => {
+    // Return smoothly to services without ever kicking to login
+    router.replace('/(tabs)/services');
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.card}>
-        <View style={styles.iconContainer}>
-          <CheckCircle2 size={64} color="#10B981" />
-        </View>
-
-        <Text style={styles.title}>Payment Received</Text>
-        <Text style={styles.subtitle}>
-          Your payment has been processed successfully.
-        </Text>
-
-        {orderId ? (
-          <View style={styles.orderIdBadge}>
-            <Text style={styles.orderIdLabel}>Order ID</Text>
-            <Text style={styles.orderIdValue} numberOfLines={1}>{orderId}</Text>
+        {isVerifying ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={Colors.primary} />
+            <Text style={styles.loadingText}>Verifying payment status...</Text>
           </View>
-        ) : null}
+        ) : isSuccess ? (
+          <>
+            <View style={styles.successIconContainer}>
+              <CheckCircle2 size={64} color="#10B981" />
+            </View>
 
-        <View style={styles.redirectingRow}>
-          <ActivityIndicator size="small" color={Colors.primary} />
-          <Text style={styles.redirectingText}>
-            Returning to MyBarber in {countdown}s...
-          </Text>
-        </View>
+            <Text style={styles.title}>Payment Successful</Text>
+            <Text style={styles.subtitle}>{statusMessage}</Text>
 
-        <TouchableOpacity 
-          style={styles.actionButton} 
-          onPress={handleContinue}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.actionButtonText}>Return to App</Text>
-          <ArrowRight size={18} color="#FFFFFF" />
-        </TouchableOpacity>
+            {orderId ? (
+              <View style={styles.orderIdBadge}>
+                <Text style={styles.orderIdLabel}>Order ID</Text>
+                <Text style={styles.orderIdValue} numberOfLines={1}>{orderId}</Text>
+              </View>
+            ) : null}
+
+            <View style={styles.redirectingRow}>
+              <ActivityIndicator size="small" color={Colors.primary} />
+              <Text style={styles.redirectingText}>
+                Viewing appointments in {countdown}s...
+              </Text>
+            </View>
+
+            <TouchableOpacity 
+              style={styles.actionButton} 
+              onPress={handleGoToAppointments}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.actionButtonText}>View Appointments</Text>
+              <ArrowRight size={18} color="#FFFFFF" />
+            </TouchableOpacity>
+          </>
+        ) : (
+          <>
+            <View style={styles.failureIconContainer}>
+              <AlertCircle size={64} color="#EF4444" />
+            </View>
+
+            <Text style={styles.title}>Payment Unsuccessful</Text>
+            <Text style={styles.subtitle}>
+              We were unable to process your payment. If any amount was deducted, it will be refunded to your original payment method. Your appointment has not been booked.
+            </Text>
+
+            {orderId ? (
+              <View style={styles.orderIdBadge}>
+                <Text style={styles.orderIdLabel}>Order ID</Text>
+                <Text style={styles.orderIdValue} numberOfLines={1}>{orderId}</Text>
+              </View>
+            ) : null}
+
+            <TouchableOpacity 
+              style={styles.actionButton} 
+              onPress={handleBackToBooking}
+              activeOpacity={0.8}
+            >
+              <ArrowLeft size={18} color="#FFFFFF" />
+              <Text style={styles.actionButtonText}>Back to Booking</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.secondaryButton} 
+              onPress={handleGoToAppointments}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.secondaryButtonText}>Go to Appointments</Text>
+            </TouchableOpacity>
+          </>
+        )}
       </View>
     </View>
   );
@@ -104,11 +213,30 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 4,
   },
-  iconContainer: {
+  loadingContainer: {
+    alignItems: 'center',
+    paddingVertical: 32,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 15,
+    fontFamily: 'Poppins-Medium',
+    color: '#64748B',
+  },
+  successIconContainer: {
     width: 96,
     height: 96,
     borderRadius: 48,
     backgroundColor: '#ECFDF5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  failureIconContainer: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: '#FEF2F2',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
@@ -176,5 +304,17 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 15,
     fontFamily: 'Poppins-SemiBold',
+  },
+  secondaryButton: {
+    marginTop: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+  },
+  secondaryButtonText: {
+    color: '#64748B',
+    fontSize: 14,
+    fontFamily: 'Poppins-Medium',
   },
 });

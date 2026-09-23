@@ -75,7 +75,21 @@ export default function RootLayout() {
           router.push('/owner/login');
         } else if (path.startsWith('payment') || path.startsWith('return')) {
           console.log('Payment return received in custom scheme:', path);
-          router.replace('/(tabs)/appointments');
+          let orderId = '';
+          try {
+            if (url.includes('?')) {
+              const queryPart = url.split('?')[1];
+              const searchParams = new URLSearchParams(queryPart);
+              orderId = searchParams.get('order_id') || '';
+            }
+          } catch (e) {
+            console.warn('Error parsing order_id from custom scheme:', e);
+          }
+          if (orderId) {
+            router.push({ pathname: '/return', params: { order_id: orderId } } as any);
+          } else {
+            router.replace('/(tabs)/appointments');
+          }
         }
       } else if (url.includes('mybarber.co.in')) {
         const urlObj = new URL(url);
@@ -92,7 +106,12 @@ export default function RootLayout() {
           router.push('/owner/login');
         } else if (path.startsWith('/return') || path.startsWith('/payment')) {
           console.log('Payment return received in web URL:', path);
-          router.replace('/(tabs)/appointments');
+          const orderId = urlObj.searchParams.get('order_id') || '';
+          if (orderId) {
+            router.push({ pathname: '/return', params: { order_id: orderId } } as any);
+          } else {
+            router.replace('/(tabs)/appointments');
+          }
         }
       }
     };
