@@ -42,6 +42,7 @@ import {
   Edit2,
   XCircle,
   CheckCircle2,
+  IndianRupee,
 } from 'lucide-react-native';
 import { useAuth } from '@/context/auth';
 import { useLanguage } from '@/context/LanguageContext';
@@ -337,6 +338,12 @@ export default function OwnerDashboard() {
       title: 'Offline payments',
       subtitle: 'Manage your offline payments',
       route: '/owner/dashboard/offlinepayments',
+    },
+    {
+      icon: <IndianRupee size={24} color={Colors.primary} />,
+      title: 'Earnings & Payouts',
+      subtitle: 'Track your 90% payouts and settlements',
+      route: '/owner/dashboard/earnings',
     },
     {
       icon: <ContactRound size={24} color={Colors.primary} />,

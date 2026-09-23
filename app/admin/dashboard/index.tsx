@@ -180,9 +180,9 @@ export default function AdminDashboard() {
     },
     {
       icon: <Landmark size={24} color={Colors.primary} />,
-      title: 'Settlements',
-      subtitle: 'Payout tracking and settlement holds',
-      route: '/admin/dashboard/settlements',
+      title: 'Earnings & Settlements',
+      subtitle: 'Platform revenue, 10/90 split & owner payouts',
+      route: '/admin/dashboard/earnings',
     },
     {
       icon: <FileClock size={24} color={Colors.primary} />,

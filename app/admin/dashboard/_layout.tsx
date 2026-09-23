@@ -69,6 +69,7 @@ export default function AdminDashboardLayout() {
       <Stack.Screen name="refunds" options={{ title: 'Refunds', animation: 'slide_from_right' }} />
       <Stack.Screen name="commissions" options={{ title: 'Commissions', animation: 'slide_from_right' }} />
       <Stack.Screen name="settlements" options={{ title: 'Settlements', animation: 'slide_from_right' }} />
+      <Stack.Screen name="earnings" options={{ title: 'Earnings & Splits', animation: 'slide_from_right' }} />
       <Stack.Screen name="audit-logs" options={{ title: 'Audit Logs', animation: 'slide_from_right' }} />
       <Stack.Screen name="reports" options={{ title: 'Reports', animation: 'slide_from_right' }} />
       <Stack.Screen name="statistics" options={{ title: 'Statistics', animation: 'slide_from_right' }} />

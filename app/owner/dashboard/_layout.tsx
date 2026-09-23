@@ -89,6 +89,7 @@ export default function DashboardLayout() {
       <Stack.Screen name="analytics" options={{ title: 'Business Analytics', animation: 'slide_from_right' }} />
       <Stack.Screen name="offers" options={{ title: 'Offers', animation: 'slide_from_right' }} />
       <Stack.Screen name="offlinepayments" options={{ title: 'Offline Payments', animation: 'slide_from_right' }} />
+      <Stack.Screen name="earnings" options={{ title: 'Earnings & Payouts', animation: 'slide_from_right' }} />
       <Stack.Screen name="hairstyle-catalog" options={{ title: 'AI Try-On Gallery', animation: 'slide_from_right' }} />
       <Stack.Screen name="settings" options={{ title: 'Settings', animation: 'slide_from_right' }} />
       <Stack.Screen name="shop-settting" options={{ title: 'Shop Settings', animation: 'slide_from_right' }} />
