@@ -1,0 +1,990 @@
+
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Image, Alert } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
+import { useRouter } from 'expo-router';
+import Colors from '@/constants/Colors';
+import { ArrowLeft, Plus, Edit2, Trash2, Star, Phone, Mail } from 'lucide-react-native';
+import Animated, { FadeIn } from 'react-native-reanimated';
+import { collection, addDoc, getDocs, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { db } from '@/config/firebase';
+import * as ImagePicker from 'expo-image-picker';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { storage } from '@/config/firebase';
+
+export default function StaffManagement() {
+  const router = useRouter();
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newStaff, setNewStaff] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    specialization: '',
+    ranking: '', // new field for ranking
+    imageUrl: '', // new field for image URL
+  });
+
+  const [staff, setStaff] = useState([]);
+  const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetchStaff();
+  }, []);
+
+  const fetchStaff = async () => {
+    try {
+      const querySnapshot = await getDocs(collection(db, 'staff'));
+      const staffData = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setStaff(staffData);
+    } catch (error) {
+      console.error('Error fetching staff:', error);
+      Alert.alert('Error', 'Failed to load staff');
+    }
+  };
+
+  const pickImage = async () => {
+    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (permissionResult.granted === false) {
+      Alert.alert('Permission required', 'Permission to access camera roll is required!');
+      return;
+    }
+
+    const pickerResult = await ImagePicker.launchImageLibraryAsync({
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.7,
+    });
+
+    if (!pickerResult.canceled) {
+      uploadImage(pickerResult.assets[0].uri);
+    }
+  };
+
+  const uploadImage = async (uri: string) => {
+    try {
+      setUploading(true);
+      console.log('Uploading image from URI:', uri);
+      const response = await fetch(uri);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch image: ${response.statusText}`);
+      }
+      const blob = await response.blob();
+      console.log('Image blob created:', blob);
+      const filename = uri.substring(uri.lastIndexOf('/') + 1);
+      const storageRef = ref(storage, `staff_images/${filename}`);
+      await uploadBytes(storageRef, blob);
+      const downloadURL = await getDownloadURL(storageRef);
+      console.log('Image uploaded, download URL:', downloadURL);
+      setNewStaff(prev => ({ ...prev, imageUrl: downloadURL }));
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      Alert.alert('Error', 'Failed to upload image: ' + error.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleAddStaff = async () => {
+    if (!newStaff.name || !newStaff.email || !newStaff.phone || !newStaff.specialization || !newStaff.ranking) {
+      Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+
+    try {
+      setSaving(true);
+      await addDoc(collection(db, 'staff'), {
+        name: newStaff.name,
+        email: newStaff.email,
+        phone: newStaff.phone,
+        specialization: newStaff.specialization,
+        ranking: newStaff.ranking,
+        imageUrl: newStaff.imageUrl,
+        createdAt: new Date().toISOString()
+      });
+
+      setNewStaff({
+        name: '',
+        email: '',
+        phone: '',
+        specialization: '',
+        ranking: '',
+        imageUrl: '',
+      });
+      setShowAddForm(false);
+      fetchStaff();
+      Alert.alert('Success', 'Staff added successfully');
+    } catch (error) {
+      console.error('Error adding staff:', error);
+      Alert.alert('Error', 'Failed to add staff');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <View style={styles.container}>
+      <Animated.View entering={FadeIn.duration(500)} style={styles.header}>
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={() => router.back()}
+        >
+          <ArrowLeft size={24} color={Colors.text} />
+        </TouchableOpacity>
+        <View style={styles.headerContent}>
+          <Text style={styles.headerTitle}>Staff</Text>
+          <Text style={styles.headerSubtitle}>Manage barbers and staff</Text>
+        </View>
+        <TouchableOpacity 
+          style={styles.addButton}
+          onPress={() => setShowAddForm(true)}
+        >
+          <Plus size={24} color={Colors.primary} />
+        </TouchableOpacity>
+      </Animated.View>
+
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {showAddForm && (
+          <Animated.View 
+            entering={FadeIn.duration(500)}
+            style={styles.addForm}
+          >
+            <Text style={styles.formTitle}>Add New Staff Member</Text>
+            
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Full Name</Text>
+              <TextInput
+                style={styles.input}
+                value={newStaff.name}
+                onChangeText={(text) => setNewStaff({...newStaff, name: text})}
+                placeholder="Enter full name"
+                placeholderTextColor={Colors.textLight}
+              />
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Email</Text>
+              <TextInput
+                style={styles.input}
+                value={newStaff.email}
+                onChangeText={(text) => setNewStaff({...newStaff, email: text})}
+                placeholder="Enter email address"
+                placeholderTextColor={Colors.textLight}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Phone</Text>
+              <TextInput
+                style={styles.input}
+                value={newStaff.phone}
+                onChangeText={(text) => setNewStaff({...newStaff, phone: text})}
+                placeholder="Enter phone number"
+                placeholderTextColor={Colors.textLight}
+                keyboardType="phone-pad"
+              />
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Specialization</Text>
+              <TextInput
+                style={styles.input}
+                value={newStaff.specialization}
+                onChangeText={(text) => setNewStaff({...newStaff, specialization: text})}
+                placeholder="Enter specialization"
+                placeholderTextColor={Colors.textLight}
+              />
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Ranking</Text>
+              <View style={styles.pickerContainer}>
+                <Picker
+                  selectedValue={newStaff.ranking}
+                  onValueChange={(itemValue: string) =>
+                    setNewStaff({ ...newStaff, ranking: itemValue })
+                  }
+                  style={styles.picker}
+                >
+                  <Picker.Item label="Select Ranking" value="" />
+                  <Picker.Item label="Top" value="Top" />
+                  <Picker.Item label="Mid" value="Mid" />
+                  <Picker.Item label="Low" value="Low" />
+                </Picker>
+              </View>
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Upload Image</Text>
+              <TouchableOpacity 
+                style={styles.uploadButton}
+                onPress={pickImage}
+                disabled={uploading}
+              >
+                <Text style={styles.uploadButtonText}>
+                  {uploading ? 'Uploading...' : 'Select Image'}
+                </Text>
+              </TouchableOpacity>
+              {newStaff.imageUrl ? (
+                <Image source={{ uri: newStaff.imageUrl }} style={styles.uploadedImage} />
+              ) : null}
+            </View>
+
+            <View style={styles.formButtons}>
+              <TouchableOpacity 
+                style={[styles.formButton, styles.cancelButton]}
+                onPress={() => setShowAddForm(false)}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.formButton, styles.saveButton]}
+        onPress={() => {
+          // Handle save
+          handleAddStaff();
+        }}
+        disabled={saving}
+              >
+                <Text style={styles.saveButtonText}>
+                  {saving ? 'Saving...' : 'Save'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        )}
+
+        {staff.map((member) => (
+          <Animated.View 
+            key={member.id}
+            entering={FadeIn.duration(500)}
+            style={styles.staffCard}
+          >
+            <View style={styles.staffHeader}>
+              <Image source={{ uri: member.image }} style={styles.staffImage} />
+              <View style={styles.staffInfo}>
+                <Text style={styles.staffName}>{member.name}</Text>
+                <Text style={styles.staffSpecialization}>{member.specialization}</Text>
+                <View style={styles.ratingContainer}>
+                  <Star size={16} color={Colors.accent} fill={Colors.accent} />
+                  <Text style={styles.ratingText}>{member.rating}</Text>
+                </View>
+              </View>
+              <View style={styles.actionButtons}>
+                <TouchableOpacity style={styles.iconButton}>
+                  <Edit2 size={16} color={Colors.primary} />
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.iconButton, styles.deleteButton]}>
+                  <Trash2 size={16} color={Colors.error} />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={styles.contactInfo}>
+              <View style={styles.contactItem}>
+                <Mail size={16} color={Colors.primary} />
+                <Text style={styles.contactText}>{member.email}</Text>
+              </View>
+              <View style={styles.contactItem}>
+                <Phone size={16} color={Colors.primary} />
+                <Text style={styles.contactText}>{member.phone}</Text>
+              </View>
+            </View>
+          </Animated.View>
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingTop: 60,
+    paddingBottom: 24,
+    backgroundColor: Colors.background,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.backgroundLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  headerContent: {
+    flex: 1,
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontFamily: 'Poppins-Bold',
+    color: Colors.text,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    fontFamily: 'Poppins-Regular',
+    color: Colors.textLight,
+  },
+  addButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.backgroundLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 24,
+  },
+  addForm: {
+    backgroundColor: Colors.cardBackground,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  formTitle: {
+    fontSize: 18,
+    fontFamily: 'Poppins-SemiBold',
+    color: Colors.text,
+    marginBottom: 16,
+  },
+  inputContainer: {
+    marginBottom: 16,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontFamily: 'Poppins-Medium',
+    color: Colors.text,
+    marginBottom: 8,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize:  14,
+    fontFamily: 'Poppins-Regular',
+    color: Colors.text,
+    backgroundColor: Colors.backgroundLight,
+  },
+  formButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+  },
+  formButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    minWidth: 100,
+    alignItems: 'center',
+  },
+  cancelButton: {
+    backgroundColor: Colors.errorLight,
+  },
+  saveButton: {
+    backgroundColor: Colors.primary,
+  },
+  cancelButtonText: {
+    color: Colors.error,
+    fontSize: 14,
+    fontFamily: 'Poppins-SemiBold',
+  },
+  saveButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontFamily: 'Poppins-SemiBold',
+  },
+  staffCard: {
+    backgroundColor: Colors.cardBackground,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  staffHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  staffImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    marginRight: 12,
+  },
+  staffInfo: {
+    flex: 1,
+  },
+  staffName: {
+    fontSize: 18,
+    fontFamily: 'Poppins-SemiBold',
+    color: Colors.text,
+  },
+  staffSpecialization: {
+    fontSize: 14,
+    fontFamily: 'Poppins-Regular',
+    color: Colors.textLight,
+    marginTop: 2,
+  },
+  ratingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  ratingText: {
+    fontSize: 14,
+    fontFamily: 'Poppins-Medium',
+    color: Colors.text,
+    marginLeft: 4,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  iconButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.backgroundLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  deleteButton: {
+    backgroundColor: Colors.errorLight,
+  },
+  contactInfo: {
+    gap: 8,
+  },
+  contactItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  contactText: {
+    fontSize: 14,
+    fontFamily: 'Poppins-Regular',
+    color: Colors.text,
+    marginLeft: 8,
+  },
+  pickerContainer: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: Colors.backgroundLight,
+  },
+  picker: {
+    height: 60,
+    width: '100%',
+    color: Colors.text,
+  },
+});
+
+
+
+
+
+
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Image, Alert } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
+import { useRouter } from 'expo-router';
+import Colors from '@/constants/Colors';
+import { ArrowLeft, Plus, Edit2, Trash2, Star, Phone, Mail } from 'lucide-react-native';
+import Animated, { FadeIn } from 'react-native-reanimated';
+import { collection, addDoc, getDocs, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { db } from '@/config/firebase';
+import * as ImagePicker from 'expo-image-picker';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { storage } from '@/config/firebase';
+
+export default function StaffManagement() {
+  const router = useRouter();
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newStaff, setNewStaff] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    specialization: '',
+    ranking: '', // new field for ranking
+    imageUrl: '', // new field for image URL
+  });
+
+  interface StaffMember {
+    id: string;
+    name: string;
+    email: string;
+    phone: string;
+    specialization: string;
+    ranking: string;
+    imageUrl?: string;
+  }
+
+  const [staff, setStaff] = useState<StaffMember[]>([]);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetchStaff();
+  }, []);
+
+  const fetchStaff = async () => {
+    try {
+      const querySnapshot = await getDocs(collection(db, 'staff'));
+      const staffData = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          name: data.name || '',
+          email: data.email || '',
+          phone: data.phone || '',
+          specialization: data.specialization || '',
+          ranking: data.ranking || '',
+          imageUrl: data.imageUrl || '',
+        };
+      });
+      setStaff(staffData);
+    } catch (error) {
+      console.error('Error fetching staff:', error);
+      Alert.alert('Error', 'Failed to load staff');
+    }
+  };
+
+  const handleAddStaff = async () => {
+    if (!newStaff.name || !newStaff.email || !newStaff.phone || !newStaff.specialization || !newStaff.ranking) {
+      Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+
+    try {
+      setSaving(true);
+      await addDoc(collection(db, 'staff'), {
+        name: newStaff.name,
+        email: newStaff.email,
+        phone: newStaff.phone,
+        specialization: newStaff.specialization,
+        ranking: newStaff.ranking,
+        imageUrl: newStaff.imageUrl,
+        createdAt: new Date().toISOString()
+      });
+
+      setNewStaff({
+        name: '',
+        email: '',
+        phone: '',
+        specialization: '',
+        ranking: '',
+        imageUrl: '',
+      });
+      setShowAddForm(false);
+      fetchStaff();
+      Alert.alert('Success', 'Staff added successfully');
+    } catch (error) {
+      console.error('Error adding staff:', error);
+      Alert.alert('Error', 'Failed to add staff');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <View style={styles.container}>
+      <Animated.View entering={FadeIn.duration(500)} style={styles.header}>
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={() => router.back()}
+        >
+          <ArrowLeft size={24} color={Colors.text} />
+        </TouchableOpacity>
+        <View style={styles.headerContent}>
+          <Text style={styles.headerTitle}>Staff</Text>
+          <Text style={styles.headerSubtitle}>Manage barbers and staff</Text>
+        </View>
+        <TouchableOpacity 
+          style={styles.addButton}
+          onPress={() => setShowAddForm(true)}
+        >
+          <Plus size={24} color={Colors.primary} />
+        </TouchableOpacity>
+      </Animated.View>
+
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {showAddForm && (
+          <Animated.View 
+            entering={FadeIn.duration(500)}
+            style={styles.addForm}
+          >
+            <Text style={styles.formTitle}>Add New Staff Member</Text>
+            
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Full Name</Text>
+              <TextInput
+                style={styles.input}
+                value={newStaff.name}
+                onChangeText={(text) => setNewStaff({...newStaff, name: text})}
+                placeholder="Enter full name"
+                placeholderTextColor={Colors.textLight}
+              />
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Email</Text>
+              <TextInput
+                style={styles.input}
+                value={newStaff.email}
+                onChangeText={(text) => setNewStaff({...newStaff, email: text})}
+                placeholder="Enter email address"
+                placeholderTextColor={Colors.textLight}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Phone</Text>
+              <TextInput
+                style={styles.input}
+                value={newStaff.phone}
+                onChangeText={(text) => setNewStaff({...newStaff, phone: text})}
+                placeholder="Enter phone number"
+                placeholderTextColor={Colors.textLight}
+                keyboardType="phone-pad"
+              />
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Specialization</Text>
+              <TextInput
+                style={styles.input}
+                value={newStaff.specialization}
+                onChangeText={(text) => setNewStaff({...newStaff, specialization: text})}
+                placeholder="Enter specialization"
+                placeholderTextColor={Colors.textLight}
+              />
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Ranking</Text>
+              <View style={styles.pickerContainer}>
+              <Picker
+                selectedValue={newStaff.ranking}
+                onValueChange={(itemValue: string) =>
+                  setNewStaff({ ...newStaff, ranking: itemValue })
+                }
+                style={styles.picker}
+              >
+                <Picker.Item label="Select Rating" value="" />
+                <Picker.Item label="1" value="1" />
+                <Picker.Item label="2" value="2" />
+                <Picker.Item label="3" value="3" />
+                <Picker.Item label="4" value="4" />
+                <Picker.Item label="5" value="5" />
+                <Picker.Item label="6" value="6" />
+                <Picker.Item label="7" value="7" />
+                <Picker.Item label="8" value="8" />
+                <Picker.Item label="9" value="9" />
+                <Picker.Item label="10" value="10" />
+              </Picker>
+              </View>
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Image URL</Text>
+              <TextInput
+                style={styles.input}
+                value={newStaff.imageUrl}
+                onChangeText={(text) => setNewStaff({ ...newStaff, imageUrl: text })}
+                placeholder="Paste image URL"
+                placeholderTextColor={Colors.textLight}
+              />
+            </View>
+
+            <View style={styles.formButtons}>
+              <TouchableOpacity 
+                style={[styles.formButton, styles.cancelButton]}
+                onPress={() => setShowAddForm(false)}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.formButton, styles.saveButton]}
+        onPress={() => {
+          // Handle save
+          handleAddStaff();
+        }}
+        disabled={saving}
+              >
+                <Text style={styles.saveButtonText}>
+                  {saving ? 'Saving...' : 'Save'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        )}
+
+        {staff.map((member) => (
+          <Animated.View 
+            key={member.id}
+            entering={FadeIn.duration(500)}
+            style={styles.staffCard}
+          >
+            <View style={styles.staffHeader}>
+          <Image source={{ uri: member.imageUrl }} style={styles.staffImage} />
+          <View style={styles.staffInfo}>
+            <Text style={styles.staffName}>{member.name}</Text>
+            <Text style={styles.staffSpecialization}>{member.specialization}</Text>
+              <View style={styles.ratingContainer}>
+                <Star size={16} color={Colors.accent} fill={Colors.accent} />
+                <Text style={styles.ratingText}>{member.ranking || 'N/A'}</Text>
+              </View>
+          </View>
+          <View style={styles.actionButtons}>
+            <TouchableOpacity style={styles.iconButton}>
+              <Edit2 size={16} color={Colors.primary} />
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.iconButton, styles.deleteButton]}>
+              <Trash2 size={16} color={Colors.error} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+            <View style={styles.contactInfo}>
+              <View style={styles.contactItem}>
+                <Mail size={16} color={Colors.primary} />
+                <Text style={styles.contactText}>{member.email}</Text>
+              </View>
+              <View style={styles.contactItem}>
+                <Phone size={16} color={Colors.primary} />
+                <Text style={styles.contactText}>{member.phone}</Text>
+              </View>
+            </View>
+          </Animated.View>
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingTop: 60,
+    paddingBottom: 24,
+    backgroundColor: Colors.background,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.backgroundLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  headerContent: {
+    flex: 1,
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontFamily: 'Poppins-Bold',
+    color: Colors.text,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    fontFamily: 'Poppins-Regular',
+    color: Colors.textLight,
+  },
+  addButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.backgroundLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 24,
+  },
+  addForm: {
+    backgroundColor: Colors.cardBackground,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  formTitle: {
+    fontSize: 18,
+    fontFamily: 'Poppins-SemiBold',
+    color: Colors.text,
+    marginBottom: 16,
+  },
+  inputContainer: {
+    marginBottom: 16,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontFamily: 'Poppins-Medium',
+    color: Colors.text,
+    marginBottom: 8,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize:  14,
+    fontFamily: 'Poppins-Regular',
+    color: Colors.text,
+    backgroundColor: Colors.backgroundLight,
+  },
+  formButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+  },
+  formButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    minWidth: 100,
+    alignItems: 'center',
+  },
+  cancelButton: {
+    backgroundColor: Colors.errorLight,
+  },
+  saveButton: {
+    backgroundColor: Colors.primary,
+  },
+  cancelButtonText: {
+    color: Colors.error,
+    fontSize: 14,
+    fontFamily: 'Poppins-SemiBold',
+  },
+  saveButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontFamily: 'Poppins-SemiBold',
+  },
+  staffCard: {
+    backgroundColor: Colors.cardBackground,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  staffHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  staffImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    marginRight: 12,
+  },
+  staffInfo: {
+    flex: 1,
+  },
+  staffName: {
+    fontSize: 18,
+    fontFamily: 'Poppins-SemiBold',
+    color: Colors.text,
+  },
+  staffSpecialization: {
+    fontSize: 14,
+    fontFamily: 'Poppins-Regular',
+    color: Colors.textLight,
+    marginTop: 2,
+  },
+  ratingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  ratingText: {
+    fontSize: 14,
+    fontFamily: 'Poppins-Medium',
+    color: Colors.text,
+    marginLeft: 4,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  iconButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.backgroundLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  deleteButton: {
+    backgroundColor: Colors.errorLight,
+  },
+  contactInfo: {
+    gap: 8,
+  },
+  contactItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  contactText: {
+    fontSize: 14,
+    fontFamily: 'Poppins-Regular',
+    color: Colors.text,
+    marginLeft: 8,
+  },
+  pickerContainer: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: Colors.backgroundLight,
+  },
+  picker: {
+    height: 60,
+    width: '100%',
+    color: Colors.text,
+  },
+});

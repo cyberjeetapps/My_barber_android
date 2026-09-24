@@ -1,0 +1,3 @@
+import React from 'react';
+import {AdminCollectionManager,commonStatuses} from '@/components/admin/AdminKit';
+export default function Screen(){return <AdminCollectionManager title="Refund Requests" subtitle="Review and track refund cases" collectionName="refundRequests" searchKeys={['bookingId','customerName','shopName','paymentId','reason']} statusOptions={[{label:'Requested',value:'requested'},{label:'Review',value:'under_review'},{label:'Approved',value:'approved'},{label:'Rejected',value:'rejected'},{label:'Completed',value:'completed'}]} columns={[{key:'customerName',label:'Customer'},{key:'shopName',label:'Salon'},{key:'bookingId',label:'Booking'},{key:'amount',label:'Amount'},{key:'reason',label:'Reason'}]} />}

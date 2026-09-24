@@ -1,0 +1,4 @@
+Role	URL to type in Expo Go
+👤 User Login	exp://192.168.215.110:8081/--/login
+👑 Admin Login	exp://192.168.215.110:8081/--/admin/login
+💼 Owner Login	exp://192.168.215.110:8081/--/owner/login
