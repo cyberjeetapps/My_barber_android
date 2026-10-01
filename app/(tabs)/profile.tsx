@@ -9,6 +9,8 @@ import {
   ActivityIndicator,
   Animated,
   Platform,
+  Modal,
+  Pressable,
 } from 'react-native';
 import { Image } from 'expo-image'; // cached image loading + blur placeholder instead of RN's uncached Image
 import { useRouter } from 'expo-router';
@@ -28,6 +30,7 @@ import {
   ShoppingBag,
   GraduationCap,
   Wrench,
+  X,
 } from 'lucide-react-native';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { useLanguage } from '@/context/LanguageContext';
@@ -388,63 +391,88 @@ export default function ProfileScreen() {
   return (
     <View style={styles.container}>
       {/* Category Selection Modal */}
-      {showCategoryServices && (
-        <View style={styles.selectionContainer}>
-          <Text style={styles.selectionTitle}>Choose a Service Category</Text>
-          <View style={styles.selectionButtons}>
-            {['man', 'woman', 'unisex']
-              .filter((gender) => {
-                const accountGender = user?.gender?.toLowerCase();
-                if (accountGender === 'woman' && gender === 'man') return false;
-                if (accountGender === 'man' && gender === 'woman') return false;
-                return true;
-              })
-              .map((gender) => (
-              <View key={gender} style={styles.categoryButtonContainer}>
-                <TouchableOpacity
-                  style={[
-                    styles.categoryButton,
-                    styles[`categoryButton${gender.charAt(0).toUpperCase() + gender.slice(1)}`],
-                    categoryDisabled && styles.disabledButton
-                  ]}
-                  onPress={() => handleProfileGenderSelection(gender as any)}
-                  disabled={categoryDisabled}
-                >
-                  <Image
-                    source={
-                      gender === 'man' ? require('@/assets/images/man.png') :
-                      gender === 'woman' ? require('@/assets/images/woman.png') :
-                      require('@/assets/images/unisex.png')
-                    }
-                    style={[
-                      styles.categoryImage,
-                      categoryDisabled && { opacity: 0.6 }
-                    ]}
-                  />
-                  {categoryDisabled && (
-                    <ActivityIndicator 
-                      size="small" 
-                      color={Colors.primary} 
-                      style={styles.buttonLoader}
-                    />
-                  )}
-                </TouchableOpacity>
-                <Text style={styles.categoryLabel}>
-                  {gender === 'man' ? 'Men' : gender === 'woman' ? 'Women' : 'Unisex'}
-                </Text>
+      <Modal
+        visible={showCategoryServices}
+        transparent
+        animationType="fade"
+        onRequestClose={resetComponentState}
+      >
+        <Pressable style={styles.modalOverlay} onPress={resetComponentState}>
+          <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()}>
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitle}>Choose Service Category</Text>
+                <Text style={styles.modalSubtitle}>Select category to browse salons & services</Text>
               </View>
-            ))}
-          </View>
-          
-          {/* Close button for safety */}
-          <TouchableOpacity 
-            style={styles.closeButton}
-            onPress={resetComponentState}
-          >
-            <Text style={styles.closeButtonText}>Close</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+              <TouchableOpacity
+                style={styles.modalCloseIconBtn}
+                onPress={resetComponentState}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <X size={20} color={Colors.textLight} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Category Buttons */}
+            <View style={styles.selectionButtons}>
+              {['man', 'woman', 'unisex']
+                .filter((gender) => {
+                  const accountGender = user?.gender?.toLowerCase();
+                  if (accountGender === 'woman' && gender === 'man') return false;
+                  if (accountGender === 'man' && gender === 'woman') return false;
+                  return true;
+                })
+                .map((gender) => (
+                  <View key={gender} style={styles.categoryButtonContainer}>
+                    <TouchableOpacity
+                      style={[
+                        styles.categoryButton,
+                        categoryDisabled && styles.disabledButton,
+                      ]}
+                      onPress={() => handleProfileGenderSelection(gender as any)}
+                      disabled={categoryDisabled}
+                      activeOpacity={0.8}
+                    >
+                      <Image
+                        source={
+                          gender === 'man'
+                            ? require('@/assets/images/man.png')
+                            : gender === 'woman'
+                            ? require('@/assets/images/woman.png')
+                            : require('@/assets/images/unisex.png')
+                        }
+                        style={[
+                          styles.categoryImage,
+                          categoryDisabled && { opacity: 0.6 },
+                        ]}
+                      />
+                      {categoryDisabled && (
+                        <ActivityIndicator
+                          size="small"
+                          color={Colors.primary}
+                          style={styles.buttonLoader}
+                        />
+                      )}
+                    </TouchableOpacity>
+                    <Text style={styles.categoryLabel}>
+                      {gender === 'man' ? 'Men' : gender === 'woman' ? 'Women' : 'Unisex'}
+                    </Text>
+                  </View>
+                ))}
+            </View>
+
+            {/* Cancel Button */}
+            <TouchableOpacity
+              style={styles.modalCancelButton}
+              onPress={resetComponentState}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.modalCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* Main Profile Content */}
       <ScrollView
@@ -684,70 +712,82 @@ const styles = StyleSheet.create({
   bottomPadding: {
     height: 20,
   },
-  selectionContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: Colors.background,
-    zIndex: 1000,
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 20,
   },
-  selectionTitle: {
-    fontSize: 28,
+  modalCard: {
+    width: '100%',
+    maxWidth: 360,
+    backgroundColor: Colors.cardBackground || '#FFFFFF',
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontFamily: 'Poppins-Bold',
     fontWeight: 'bold',
-    marginBottom: 40,
     color: Colors.text,
-    textAlign: 'center',
+  },
+  modalSubtitle: {
+    fontSize: 12,
+    fontFamily: 'Poppins-Regular',
+    color: Colors.textLight,
+    marginTop: 2,
+  },
+  modalCloseIconBtn: {
+    padding: 6,
+    borderRadius: 12,
+    backgroundColor: Colors.backgroundLight,
+    marginLeft: 12,
   },
   selectionButtons: {
-    width: '100%',
-    alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 60,
+    alignItems: 'center',
+    gap: 16,
+    marginVertical: 12,
   },
   categoryButtonContainer: {
-    marginBottom: 30,
     alignItems: 'center',
   },
   categoryButton: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 100,
+    width: 84,
+    height: 84,
+    borderRadius: 42,
     overflow: 'hidden',
     position: 'relative',
-  },
-  categoryButtonMen: {
-    width: 140,
-    height: 140,
-    backgroundColor: 'transparent',
-  },
-  categoryButtonWomen: {
-    width: 140,
-    height: 140,
-    backgroundColor: 'transparent',
-  },
-  categoryButtonUnisex: {
-    width: 140,
-    height: 140,
-    backgroundColor: 'transparent',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: Colors.backgroundLight,
+    borderWidth: 2.5,
+    borderColor: `${Colors.primary}40`,
   },
   categoryImage: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    borderWidth: 3,
-    borderColor: '#ccc',
+    width: 84,
+    height: 84,
+    borderRadius: 42,
   },
   categoryLabel: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 13,
+    fontFamily: 'Poppins-SemiBold',
+    fontWeight: '600',
     color: Colors.text,
-    marginTop: 10,
+    marginTop: 8,
   },
   disabledButton: {
     opacity: 0.6,
@@ -755,15 +795,17 @@ const styles = StyleSheet.create({
   buttonLoader: {
     position: 'absolute',
   },
-  closeButton: {
-    marginTop: 20,
-    padding: 12,
-    backgroundColor: Colors.errorLight,
-    borderRadius: 8,
+  modalCancelButton: {
+    marginTop: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: Colors.backgroundLight,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  closeButtonText: {
-    color: Colors.error,
-    fontSize: 16,
-    fontWeight: 'bold',
+  modalCancelText: {
+    fontSize: 14,
+    fontFamily: 'Poppins-Medium',
+    color: Colors.textLight,
   },
 });

@@ -17,7 +17,7 @@ module.exports = {
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.groomzy.mybarberapp",
-      buildNumber: "24",
+      buildNumber: "3",
       infoPlist: {
         NSLocationWhenInUseUsageDescription: "This app needs your location to show nearby services",
         NSCameraUsageDescription: "MyBarber needs camera access so you can try on hairstyles and upload photos.",
@@ -66,9 +66,9 @@ module.exports = {
     ],
     experiments: {
       typedRoutes: true
-    },
+    },  
     android: {
-      versionCode: 24,
+      versionCode: 26,
       googleServicesFile: "./google-services.json",
       package: "com.groomzy.mybarberapp",
       permissions: [

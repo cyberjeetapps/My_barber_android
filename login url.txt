@@ -1,4 +1,26 @@
-Role	URL to type in Expo Go
-👤 User Login	exp://192.168.215.110:8081/--/login
-👑 Admin Login	exp://192.168.215.110:8081/--/admin/login
-💼 Owner Login	exp://192.168.215.110:8081/--/owner/login
+# MyBarber Deep Links & Access URLs
+
+### 👑 Admin Access (Hidden from Public UI)
+- Production App Scheme:
+  `mybarberapp://admin/dashboard`
+  `mybarberapp://admin`
+
+- Verified HTTPS App Link (Android / Web):
+  `https://mybarber.co.in/admin/dashboard`
+  `https://mybarber.co.in/admin`
+
+- Expo Go Development:
+  `exp://192.168.215.110:8081/--/admin/dashboard`
+  `exp://192.168.215.110:8081/--/admin/login`
+
+---
+
+### 💼 Owner Access
+- App Scheme: `mybarberapp://owner` or `mybarberapp://owner/login`
+- Web Link: `https://mybarber.co.in/owner`
+- Expo Go: `exp://192.168.215.110:8081/--/owner/login`
+
+---
+
+### 👤 Customer / User Access
+- Expo Go: `exp://192.168.215.110:8081/--/login`

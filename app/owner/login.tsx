@@ -21,8 +21,8 @@ import {
   signInWithEmailAndPassword,
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
-import { getFunctions, httpsCallable } from 'firebase/functions';
-import { auth, db, functions } from '@/config/firebase';
+import { auth, db } from '@/config/firebase';
+import { sendVerificationCode, verifyCode } from '@/config/twilio';
 import { useAuth } from '@/context/auth';
 import Colors from '@/constants/Colors';
 import { CircleAlert as AlertCircle, User, Phone } from 'lucide-react-native';
@@ -283,13 +283,12 @@ export default function OwnerLogin() {
 
       console.log('Sending verification to:', formattedPhone);
 
-      const sendVerification = httpsCallable(functions, 'sendTwilioVerificationCode');
-      await sendVerification({ phoneNumber: formattedPhone });
+      await sendVerificationCode(formattedPhone);
 
       setShowVerification(true);
     } catch (err: any) {
       console.error('Send code error:', err);
-      let errorMessage = 'Unable to send verification code. Please check your phone number and try again.';
+      let errorMessage = err?.message || 'Unable to send verification code. Please check your phone number and try again.';
       const msg = (err?.message || '').toLowerCase();
       if (msg.includes('network') || err?.code === 'unavailable') {
         errorMessage = 'Network connection issue. Please check your internet connection and try again.';
@@ -467,11 +466,7 @@ export default function OwnerLogin() {
 
       console.log('🔐 Verifying code for:', formattedPhone);
 
-      const verify = httpsCallable(functions, 'verifyTwilioCode');
-      const result = await verify({
-        phoneNumber: formattedPhone,
-        code: verificationCode,
-      });
+      await verifyCode(formattedPhone, verificationCode);
 
       const email = `${formattedPhone}@twilio.owner`;
       const password = formattedPhone;
@@ -609,10 +604,6 @@ export default function OwnerLogin() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleAdminLogin = () => {
-    router.push('/admin/login');
   };
 
   if (isCheckingSession) {
@@ -764,17 +755,6 @@ export default function OwnerLogin() {
                   )}
                 </TouchableOpacity>
 
-                {/* Admin Login Link */}
-                <TouchableOpacity
-                  style={styles.adminLoginButton}
-                  onPress={handleAdminLogin}
-                  disabled={loading}
-                >
-                  <Text style={styles.adminLoginText}>
-                    Admin Login
-                  </Text>
-                </TouchableOpacity>
-
                 {showVerification && (
                   <TouchableOpacity
                     style={styles.resendButton}
@@ -918,18 +898,6 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontFamily: 'Poppins-SemiBold',
-  },
-  adminLoginButton: {
-    marginTop: 12,
-    alignItems: 'center',
-    marginBottom: 10,
-    paddingVertical: 10,
-  },
-  adminLoginText: {
-    color: Colors.primary,
-    fontSize: 14,
-    fontFamily: 'Poppins-SemiBold',
-    textDecorationLine: 'underline',
   },
   resendButton: {
     marginTop: 12,

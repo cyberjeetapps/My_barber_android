@@ -60,58 +60,57 @@ export default function RootLayout() {
   useEffect(() => {
     const handleDeepLink = (url: string) => {
       console.log('🔗 Deep link received:', url);
-      
-      if (url.startsWith('mybarberapp://')) {
-        const path = url.replace('mybarberapp://', '');
-        console.log('Custom scheme path:', path);
-        
-        if (path.startsWith('admin/login')) {
-          router.push('/admin/login');
-        } else if (path.startsWith('admin')) {
-          router.push('/admin/login');
-        } else if (path.startsWith('owner/login')) {
-          router.push('/owner/login');
-        } else if (path.startsWith('owner')) {
-          router.push('/owner/login');
-        } else if (path.startsWith('payment') || path.startsWith('return')) {
-          console.log('Payment return received in custom scheme:', path);
-          let orderId = '';
-          try {
-            if (url.includes('?')) {
-              const queryPart = url.split('?')[1];
-              const searchParams = new URLSearchParams(queryPart);
-              orderId = searchParams.get('order_id') || '';
-            }
-          } catch (e) {
-            console.warn('Error parsing order_id from custom scheme:', e);
-          }
-          if (orderId) {
-            router.push({ pathname: '/return', params: { order_id: orderId } } as any);
-          } else {
-            router.replace('/(tabs)/appointments');
-          }
+      if (!url) return;
+
+      let cleanPath = '';
+      let searchParams: URLSearchParams | null = null;
+
+      try {
+        if (url.startsWith('mybarberapp://')) {
+          const raw = url.replace('mybarberapp://', '');
+          const [pathPart, queryPart] = raw.split('?');
+          cleanPath = pathPart.replace(/^\/+/, '');
+          if (queryPart) searchParams = new URLSearchParams(queryPart);
+        } else if (url.includes('/--/')) {
+          // Expo Go development URL
+          const raw = url.split('/--/')[1] || '';
+          const [pathPart, queryPart] = raw.split('?');
+          cleanPath = pathPart.replace(/^\/+/, '');
+          if (queryPart) searchParams = new URLSearchParams(queryPart);
+        } else if (url.includes('mybarber.co.in')) {
+          const urlObj = new URL(url);
+          cleanPath = urlObj.pathname.replace(/^\/+/, '');
+          searchParams = urlObj.searchParams;
         }
-      } else if (url.includes('mybarber.co.in')) {
-        const urlObj = new URL(url);
-        const path = urlObj.pathname;
-        console.log('HTTP scheme path:', path);
-        
-        if (path.startsWith('/admin/login')) {
-          router.push('/admin/login');
-        } else if (path.startsWith('/admin')) {
-          router.push('/admin/login');
-        } else if (path.startsWith('/owner/login')) {
-          router.push('/owner/login');
-        } else if (path.startsWith('/owner')) {
-          router.push('/owner/login');
-        } else if (path.startsWith('/return') || path.startsWith('/payment')) {
-          console.log('Payment return received in web URL:', path);
-          const orderId = urlObj.searchParams.get('order_id') || '';
-          if (orderId) {
-            router.push({ pathname: '/return', params: { order_id: orderId } } as any);
-          } else {
-            router.replace('/(tabs)/appointments');
-          }
+      } catch (err) {
+        console.warn('Error parsing deep link URL:', err);
+      }
+
+      console.log('Normalized deep link path:', cleanPath);
+
+      if (!cleanPath) return;
+
+      if (cleanPath.startsWith('admin/login')) {
+        router.push('/admin/login');
+      } else if (cleanPath === 'admin' || cleanPath === 'admin/dashboard' || cleanPath.startsWith('admin/dashboard')) {
+        if (cleanPath === 'admin' || cleanPath === 'admin/dashboard') {
+          router.push('/admin/dashboard');
+        } else {
+          router.push(`/${cleanPath}` as any);
+        }
+      } else if (cleanPath.startsWith('admin/')) {
+        router.push(`/${cleanPath}` as any);
+      } else if (cleanPath.startsWith('owner/login')) {
+        router.push('/owner/login');
+      } else if (cleanPath === 'owner' || cleanPath.startsWith('owner/')) {
+        router.push('/owner/login');
+      } else if (cleanPath.startsWith('payment') || cleanPath.startsWith('return')) {
+        console.log('Payment return received:', cleanPath);
+        const orderId = searchParams?.get('order_id') || '';
+        if (orderId) {
+          router.push({ pathname: '/return', params: { order_id: orderId } } as any);
+        } else {
+          router.replace('/(tabs)/appointments');
         }
       }
     };

@@ -120,10 +120,16 @@ export default function BookingWizardModal({
 
   const renderBarberSelection = () => (
     <Animated.View entering={FadeIn} style={styles.stepContent}>
-      <Text style={styles.stepTitle}>Choose Your Barber</Text>
-      <Text style={styles.stepSubtitle}>Select a barber or let us assign the best available</Text>
-      
-      <ScrollView showsVerticalScrollIndicator={false} nestedScrollEnabled={true} contentContainerStyle={{ flexGrow: 1, paddingBottom: 100 }}>
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        nestedScrollEnabled={true}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Text style={styles.stepTitle}>Choose Your Barber</Text>
+        <Text style={styles.stepSubtitle}>Select a barber or let us assign the best available</Text>
+        
         <TouchableOpacity
           style={[
             styles.barberCard,
@@ -185,9 +191,15 @@ export default function BookingWizardModal({
       case 1:
         return (
           <Animated.View entering={SlideInRight} style={styles.stepContent}>
-            <Text style={styles.stepTitle}>Date & Time</Text>
-            <Text style={styles.stepSubtitle}>Select when you want to visit</Text>
-            <ScrollView showsVerticalScrollIndicator={false} nestedScrollEnabled={true} contentContainerStyle={{ flexGrow: 1, paddingBottom: 100 }}>
+            <ScrollView 
+              style={styles.scrollView}
+              contentContainerStyle={styles.scrollContent}
+              showsVerticalScrollIndicator={false}
+              nestedScrollEnabled={true}
+              keyboardShouldPersistTaps="handled"
+            >
+              <Text style={styles.stepTitle}>Date & Time</Text>
+              <Text style={styles.stepSubtitle}>Select when you want to visit</Text>
               {renderDateAndTime()}
             </ScrollView>
           </Animated.View>
@@ -195,9 +207,15 @@ export default function BookingWizardModal({
       case 2:
         return (
           <Animated.View entering={SlideInRight} style={styles.stepContent}>
-            <Text style={styles.stepTitle}>Services</Text>
-            <Text style={styles.stepSubtitle}>Review your selected services</Text>
-            <ScrollView showsVerticalScrollIndicator={false} nestedScrollEnabled={true} contentContainerStyle={{ flexGrow: 1, paddingBottom: 100 }}>
+            <ScrollView 
+              style={styles.scrollView}
+              contentContainerStyle={styles.scrollContent}
+              showsVerticalScrollIndicator={false}
+              nestedScrollEnabled={true}
+              keyboardShouldPersistTaps="handled"
+            >
+              <Text style={styles.stepTitle}>Services</Text>
+              <Text style={styles.stepSubtitle}>Review your selected services</Text>
               {renderServices()}
             </ScrollView>
           </Animated.View>
@@ -205,9 +223,15 @@ export default function BookingWizardModal({
       case 3:
         return (
           <Animated.View entering={SlideInRight} style={styles.stepContent}>
-            <Text style={styles.stepTitle}>Summary</Text>
-            <Text style={styles.stepSubtitle}>Review and confirm your booking</Text>
-            <ScrollView showsVerticalScrollIndicator={false} nestedScrollEnabled={true} contentContainerStyle={{ flexGrow: 1, paddingBottom: 180 }}>
+            <ScrollView 
+              style={styles.scrollView}
+              contentContainerStyle={styles.scrollContent}
+              showsVerticalScrollIndicator={false}
+              nestedScrollEnabled={true}
+              keyboardShouldPersistTaps="handled"
+            >
+              <Text style={styles.stepTitle}>Summary</Text>
+              <Text style={styles.stepSubtitle}>Review and confirm your booking</Text>
               {renderSummary()}
             </ScrollView>
           </Animated.View>
@@ -257,7 +281,7 @@ export default function BookingWizardModal({
         </View>
 
         {/* Footer Button */}
-        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 20) }]}>
+        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
           {currentStep === 3 && totalAmount !== undefined && (
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12, paddingHorizontal: 4 }}>
               <View>
@@ -336,7 +360,7 @@ const styles = StyleSheet.create({
   },
   progressContainer: {
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#1E1E1E',
   },
@@ -369,7 +393,16 @@ const styles = StyleSheet.create({
   },
   stepContent: {
     flex: 1,
-    padding: 20,
+  },
+  scrollView: {
+    flex: 1,
+    width: '100%',
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 28,
   },
   stepTitle: {
     color: Colors.text,
@@ -426,12 +459,8 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   footer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
     paddingHorizontal: 20,
-    paddingTop: 16,
+    paddingTop: 14,
     backgroundColor: Colors.background,
     borderTopWidth: 1,
     borderTopColor: '#1E1E1E',

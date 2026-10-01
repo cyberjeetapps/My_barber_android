@@ -2459,7 +2459,7 @@ return (
                   })()}
 
                   {chairSelectionApplies && selectedTimeSlot && (
-                    <View style={[styles.chairSection, { marginTop: 24, marginHorizontal: 0 }]}>
+                    <View style={[styles.chairSection, { marginTop: 24, marginHorizontal: 0, paddingHorizontal: 20 }]}>
                       <Text style={[styles.timeSlotsTitle, { color: servicepriceColor() }]}>
                         Choose your chair
                       </Text>
@@ -2528,7 +2528,7 @@ return (
         renderServices={() => {
           const shopAddOnServices = (() => {
             if (!selectedService || !selectedService.shopId) return [];
-            let all = [];
+            let all: any[] = [];
             if (selectedCategory === 'nearby') {
               all = allNearbyServices;
             } else {
@@ -2610,10 +2610,16 @@ return (
                   return (
                     <TouchableOpacity
                       key={addon.id}
-                      style={[
-                        styles.barberCard,
-                        { flexDirection: 'row', alignItems: 'center', padding: 16, backgroundColor: Colors.cardBackground, borderRadius: 16, marginBottom: 12, borderWidth: 1, borderColor: isSelected ? servicepriceColor() : 'transparent' }
-                      ]}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        padding: 16,
+                        backgroundColor: Colors.cardBackground,
+                        borderRadius: 16,
+                        marginBottom: 12,
+                        borderWidth: 1,
+                        borderColor: isSelected ? servicepriceColor() : 'transparent'
+                      }}
                       onPress={() => {
                         if (isSelected) {
                           setAddOnServices(prev => prev.filter(s => s.id !== addon.id));
@@ -2631,10 +2637,10 @@ return (
                       </View>
 
                       <View style={{ flex: 1 }}>
-                        <Text style={[styles.barberName, { marginBottom: 4, color: Colors.text, fontSize: 16, fontWeight: 'bold' }]}>{addon.name}</Text>
+                        <Text style={{ marginBottom: 4, color: Colors.text, fontSize: 16, fontWeight: 'bold' }}>{addon.name}</Text>
                         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                           <Clock size={14} color={Colors.textLight} style={{ marginRight: 4 }} />
-                          <Text style={[styles.barberSpec, { color: Colors.textLight, fontSize: 14 }]}>{addon.duration} min</Text>
+                          <Text style={{ color: Colors.textLight, fontSize: 14 }}>{addon.duration} min</Text>
                         </View>
                       </View>
                       
@@ -2895,15 +2901,15 @@ return (
         visible={showSuccess}
         onRequestClose={() => setShowSuccess(false)}
         animationType="fade"
+        statusBarTranslucent={true}
       >
         <View style={styles.successOverlay}>
-          <Animated.View 
-            entering={FadeIn.duration(300)}
-            exiting={FadeOut.duration(300)}
-            style={styles.successContainer}
-          >
+          <View style={styles.successContainer}>
+            <View style={styles.successIconCircle}>
+              <CheckCircle2 size={36} color="#FFFFFF" strokeWidth={2.5} />
+            </View>
             <Text style={styles.successText}>{successMessage}</Text>
-          </Animated.View>
+          </View>
         </View>
       </Modal>
     )}
@@ -2911,7 +2917,13 @@ return (
     <ShopDetailsModal
       visible={showShopDetailsModal}
       onClose={() => setShowShopDetailsModal(false)}
-      shop={allShops.find(s => s.id === selectedService?.shopId)}
+      shop={allShops.find(s => String(s.id) === String(selectedService?.shopId)) || (selectedService?.shopId ? {
+        id: selectedService.shopId,
+        shopName: selectedService.shopName || 'Shop',
+        shopLocation: selectedService.shopLocation,
+        addressLine1: selectedService.shopLocation,
+        imageUrl: selectedService.imageUrl,
+      } : null)}
       services={[...allNearbyServices, ...Object.values(servicesByCategory).flat()].filter((s: any) => s && s.shopId === selectedService?.shopId).filter((v: any, i: number, a: any[]) => a.findIndex(t => t.id === v.id) === i)}
       selectedService={selectedService}
       onBook={handleOpenBookingFlow}
@@ -3153,7 +3165,7 @@ const styles = StyleSheet.create({
   
   /* NEW DATE & TIME UI STYLES */
   dateTimeWrapper: {
-    paddingHorizontal: 0,
+    marginHorizontal: -20,
     marginTop: 10,
   },
   dateSection: {
@@ -3498,24 +3510,46 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    paddingHorizontal: 28,
   },
   successContainer: {
-    backgroundColor: Colors.success,
-    padding: 20,
-    borderRadius: 10,
-    marginHorizontal: 20,
+    width: '100%',
+    maxWidth: 320,
+    backgroundColor: '#1E1E1E',
+    borderWidth: 1.5,
+    borderColor: 'rgba(34, 197, 94, 0.4)',
+    paddingVertical: 28,
+    paddingHorizontal: 24,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  successIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#16A34A',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+    shadowColor: '#16A34A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 4,
   },
   successText: {
-    color: 'white',
+    color: '#FFFFFF',
     fontSize: 16,
     fontFamily: 'Poppins-SemiBold',
     textAlign: 'center',
+    lineHeight: 24,
   },
   packageServicesModal: {
     marginTop: 12,

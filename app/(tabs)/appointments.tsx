@@ -3,7 +3,7 @@ import { StyleSheet, Text, View, TouchableOpacity, ScrollView, ActivityIndicator
 import { Image } from 'expo-image'; // cached image loading instead of RN's uncached Image
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Colors from '@/constants/Colors';
-import { Calendar, Clock, MapPin, X, ChevronRight, Star, CreditCard, ShoppingBag, CalendarPlus, Navigation, Repeat2, ReceiptText } from 'lucide-react-native';
+import { Calendar, Clock, MapPin, X, ChevronRight, Star, CreditCard, ShoppingBag, CalendarPlus, Navigation, Repeat2, ReceiptText, CheckCircle2 } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp, FadeOut } from 'react-native-reanimated';
 import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, getDoc, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/config/firebase';
@@ -941,7 +941,7 @@ export default function AppointmentsScreen() {
 
             {appointment.status === 'cancelled' && appointment.paymentStatus === 'paid' && (
               <View style={[styles.statusBadge, { backgroundColor: '#F3F4F6' }]}>
-                <Text style={[styles.statusText, { color: Colors.textSecondary, fontSize: 10 }]}>
+                <Text style={[styles.statusText, { color: Colors.textLight, fontSize: 10 }]}>
                   NON-REFUNDABLE
                 </Text>
               </View>
@@ -1976,15 +1976,15 @@ export default function AppointmentsScreen() {
           visible={showSuccess}
           onRequestClose={() => setShowSuccess(false)}
           animationType="fade"
+          statusBarTranslucent={true}
         >
           <View style={styles.successOverlay}>
-            <Animated.View
-              entering={FadeIn.duration(300)}
-              exiting={FadeOut.duration(300)}
-              style={styles.successContainer}
-            >
+            <View style={styles.successContainer}>
+              <View style={styles.successIconCircle}>
+                <CheckCircle2 size={36} color="#FFFFFF" strokeWidth={2.5} />
+              </View>
               <Text style={styles.successText}>{successMessage}</Text>
-            </Animated.View>
+            </View>
           </View>
         </Modal>
       )}
@@ -2429,24 +2429,46 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    paddingHorizontal: 28,
   },
   successContainer: {
-    backgroundColor: Colors.success,
-    padding: 20,
-    borderRadius: 10,
-    marginHorizontal: 20,
+    width: '100%',
+    maxWidth: 320,
+    backgroundColor: '#1E1E1E',
+    borderWidth: 1.5,
+    borderColor: 'rgba(34, 197, 94, 0.4)',
+    paddingVertical: 28,
+    paddingHorizontal: 24,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  successIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#16A34A',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+    shadowColor: '#16A34A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 4,
   },
   successText: {
-    color: 'white',
+    color: '#FFFFFF',
     fontSize: 16,
     fontFamily: 'Poppins-SemiBold',
     textAlign: 'center',
+    lineHeight: 24,
   },
   statusContainer: {
     flexDirection: 'row',

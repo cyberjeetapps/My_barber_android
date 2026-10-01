@@ -11,6 +11,9 @@ require("./config/cashfree");
 const ownerRoutes = require("./routes/ownerRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
 const webhookRoutes = require("./routes/webhookRoutes");
+const authRoutes = require("./routes/authRoutes");
+const notificationRoutes = require("./routes/notificationRoutes");
+const { initFirestoreWatchers } = require("./services/firestoreNotificationWatcher");
 
 const app = express();
 
@@ -34,6 +37,8 @@ app.use((req, res, next) => {
 });
 
 // Primary API routes
+app.use("/api/auth", authRoutes);
+app.use("/api/notifications", notificationRoutes);
 app.use("/api/owners", ownerRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/webhooks", webhookRoutes);
@@ -85,6 +90,14 @@ app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 MyBarber Payment Server running at http://localhost:${PORT}`);
   console.log(`📱 Environment: ${process.env.NODE_ENV || "development"}`);
   console.log(`💳 Cashfree Marketplace / Easy Split: Enabled (10/90 split)`);
+  console.log(`🔔 Push Notification Service: Enabled (Expo Push Batches)`);
+
+  // Start background Firestore notification watchers
+  try {
+    initFirestoreWatchers();
+  } catch (watcherErr) {
+    console.error("❌ Failed to initialize Firestore notification watchers:", watcherErr.message);
+  }
 });
 
 module.exports = app;

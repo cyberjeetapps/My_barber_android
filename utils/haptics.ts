@@ -12,6 +12,10 @@ export const haptics = {
   tap: () => {
     if (isSupported) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   },
+  /** Selection — picker, dropdown, or list item selection. */
+  selection: () => {
+    if (isSupported) Haptics.selectionAsync();
+  },
   /** Slightly firmer tap — primary CTAs (send code, confirm booking, pay). */
   press: () => {
     if (isSupported) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);

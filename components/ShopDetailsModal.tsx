@@ -410,7 +410,7 @@ export default function ShopDetailsModal({ visible, onClose, shop, services, sel
   const hasHomeService = !!shop?.amenities?.homeService;
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose} statusBarTranslucent={true}>
       <View style={styles.container}>
         <ScrollView 
           style={styles.scrollView} 
@@ -600,9 +600,10 @@ export default function ShopDetailsModal({ visible, onClose, shop, services, sel
             onPress={() => {
               onBook(selectedService, shopStaff);
             }}
+            activeOpacity={0.8}
           >
             <Text style={styles.bookNowButtonText}>Book Now</Text>
-            <ChevronRight size={16} color="#000" />
+            <ChevronRight size={16} color="#fff" />
           </TouchableOpacity>
         </View>
 
@@ -614,8 +615,6 @@ export default function ShopDetailsModal({ visible, onClose, shop, services, sel
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    height: '100%',
-    width: '100%',
     backgroundColor: Colors.background,
   },
   scrollView: {

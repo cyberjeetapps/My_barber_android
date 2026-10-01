@@ -86,32 +86,30 @@ export default function AdminLogin() {
 
   // Check for existing admin session on component mount
   useEffect(() => {
+    if (user && user?.role === 'admin') {
+      router.replace('/admin/dashboard');
+      setIsCheckingSession(false);
+      return;
+    }
+
     const checkAdminSession = async () => {
       try {
-        const session = await safeStore.getItem('admin_session');
-        if (session) {
-          const { uid, email } = JSON.parse(session);
-
-          // Silent sign in
-          const userCredential = await signInWithEmailAndPassword(auth, email, password);
-          const user = userCredential.user;
-
-          // Get admin data from Firestore
-          const adminDoc = await getDoc(doc(db, 'admins', user.uid));
-          
-          if (adminDoc.exists()) {
-            const adminData = adminDoc.data();
+        const currentUser = auth.currentUser;
+        if (currentUser) {
+          const adminDoc = await getDoc(doc(db, 'admins', currentUser.uid));
+          if (adminDoc.exists() && adminDoc.data()?.role === 'admin') {
             setUser({
-              ...user,
-              ...adminData,
+              ...currentUser,
+              ...adminDoc.data(),
               role: 'admin',
             });
 
             // Register push token
-            await registerAdminPushToken(user.uid);
+            await registerAdminPushToken(currentUser.uid);
 
             // Redirect to admin dashboard
             router.replace('/admin/dashboard');
+            return;
           }
         }
       } catch (error) {
@@ -122,7 +120,7 @@ export default function AdminLogin() {
     };
 
     checkAdminSession();
-  }, []);
+  }, [user]);
 
   const registerAdminPushToken = async (uid: string) => {
     try {

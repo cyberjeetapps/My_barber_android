@@ -23,13 +23,12 @@ import {
   signInWithEmailAndPassword,
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
-import { getFunctions, httpsCallable } from 'firebase/functions';
-import { auth, db, functions } from '@/config/firebase';
+import { auth, db } from '@/config/firebase';
+import { sendVerificationCode, verifyCode } from '@/config/twilio';
 import { useAuth } from '@/context/auth';
 import Colors from '@/constants/Colors';
-import { CircleAlert as AlertCircle, User, Phone, CheckSquare, Square, X, ExternalLink } from 'lucide-react-native';
+import { CircleAlert as AlertCircle, User, Phone, CheckSquare, Square, X, ExternalLink, ChevronDown, Check } from 'lucide-react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
-import { Picker } from '@react-native-picker/picker';
 import * as SecureStore from 'expo-secure-store';
 import * as Notifications from 'expo-notifications';
 import { haptics } from '@/utils/haptics';
@@ -47,6 +46,8 @@ const TEST_NUMBERS = [
   "+919080099127"
 ];
 
+const GENDER_OPTIONS = ['Male', 'Female', 'Other'];
+
 export default function Signup() {
   // Recomputed on every render (rotation, split-screen, browser resize) instead of
   // the frozen value from Dimensions.get('window') at module load time.
@@ -59,6 +60,7 @@ export default function Signup() {
     phoneNumber: '',
     gender: '',
   });
+  const [showGenderDropdown, setShowGenderDropdown] = useState(false);
 
   const [verificationCode, setVerificationCode] = useState('');
   const [showVerification, setShowVerification] = useState(false);
@@ -320,16 +322,15 @@ export default function Signup() {
         return;
       }
 
-      // Normal SMS verification flow
-      const sendVerification = httpsCallable(functions, 'sendTwilioVerificationCode');
-      await sendVerification({ phoneNumber: formattedPhone });
+      // SMS verification flow via backend
+      await sendVerificationCode(formattedPhone);
 
       haptics.success();
       setShowVerification(true);
     } catch (err: any) {
       haptics.error();
       console.error('Send code error:', err);
-      let errorMessage = 'Unable to send verification code. Please check your phone number and try again.';
+      let errorMessage = err?.message || 'Unable to send verification code. Please check your phone number and try again.';
       const msg = (err?.message || '').toLowerCase();
       if (msg.includes('network') || err?.code === 'unavailable') {
         errorMessage = 'Network connection issue. Please check your internet connection and try again.';
@@ -364,12 +365,8 @@ export default function Signup() {
         ? formData.phoneNumber
         : `+91${formData.phoneNumber}`;
 
-      // 1. Verify the Twilio code
-      const verify = httpsCallable(functions, 'verifyTwilioCode');
-      await verify({
-        phoneNumber: formattedPhone,
-        code: verificationCode,
-      });
+      // 1. Verify the Twilio code via backend
+      await verifyCode(formattedPhone, verificationCode);
 
       const email = `${formattedPhone}@twilio.user`;
       const password = formattedPhone;
@@ -584,6 +581,7 @@ export default function Signup() {
                       placeholderTextColor={Colors.textLight}
                       value={formData.name}
                       onChangeText={(text) => updateFormField('name', text)}
+                      onFocus={() => setShowGenderDropdown(false)}
                       editable={!loading}
                     />
                   </View>
@@ -604,6 +602,7 @@ export default function Signup() {
                       keyboardType="phone-pad"
                       value={formData.phoneNumber}
                       onChangeText={(text) => updateFormField('phoneNumber', text)}
+                      onFocus={() => setShowGenderDropdown(false)}
                       editable={!loading}
                       maxLength={15}
                     />
@@ -612,26 +611,79 @@ export default function Signup() {
                     <Text style={styles.errorText}>{phoneError}</Text>
                   ) : null}
 
-                  <View style={styles.inputContainer}>
+                  <TouchableOpacity
+                    style={[
+                      styles.inputContainer,
+                      styles.genderSelector,
+                      showGenderDropdown && styles.genderSelectorActive,
+                    ]}
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      setShowGenderDropdown(!showGenderDropdown);
+                    }}
+                    disabled={loading}
+                    activeOpacity={0.8}
+                  >
                     <User
                       size={20}
                       color={Colors.primary}
                       style={styles.inputIcon}
                     />
-                    <Picker
-                      selectedValue={formData.gender}
-                      style={styles.input}
-                      onValueChange={(itemValue) =>
-                        updateFormField('gender', itemValue)
-                      }
-                      enabled={!loading}
+                    <Text
+                      style={[
+                        styles.dropdownSelectedText,
+                        !formData.gender && styles.dropdownPlaceholderText,
+                      ]}
                     >
-                      <Picker.Item label="Select Gender" value="" />
-                      <Picker.Item label="Male" value="Male" />
-                      <Picker.Item label="Female" value="Female" />
-                      <Picker.Item label="Other" value="Other" />
-                    </Picker>
-                  </View>
+                      {formData.gender || 'Select Gender'}
+                    </Text>
+                    <ChevronDown
+                      size={18}
+                      color={Colors.textLight}
+                      style={[
+                        styles.dropdownChevron,
+                        showGenderDropdown && styles.dropdownChevronOpen,
+                      ]}
+                    />
+                  </TouchableOpacity>
+
+                  {showGenderDropdown && (
+                    <View style={styles.dropdownMenu}>
+                      {GENDER_OPTIONS.map((option, index) => {
+                        const isSelected = formData.gender === option;
+                        const isLast = index === GENDER_OPTIONS.length - 1;
+                        return (
+                          <TouchableOpacity
+                            key={option}
+                            style={[
+                              styles.dropdownMenuItem,
+                              isSelected && styles.dropdownMenuItemSelected,
+                              !isLast && styles.dropdownMenuItemBorder,
+                            ]}
+                            onPress={() => {
+                              updateFormField('gender', option);
+                              setShowGenderDropdown(false);
+                              haptics.selection();
+                            }}
+                            activeOpacity={0.7}
+                          >
+                            <Text
+                              style={[
+                                styles.dropdownMenuItemText,
+                                isSelected && styles.dropdownMenuItemTextSelected,
+                              ]}
+                            >
+                              {option}
+                            </Text>
+                            {isSelected && (
+                              <Check size={16} color={Colors.primary} />
+                            )}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  )}
+
                   {error && !formData.gender ? (
                     <Text style={styles.errorText}>Gender is required</Text>
                   ) : null}
@@ -847,6 +899,65 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: 'Poppins-Regular',
     color: Colors.text,
+  },
+  genderSelector: {
+    minHeight: 58,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  genderSelectorActive: {
+    borderColor: Colors.primary,
+  },
+  dropdownSelectedText: {
+    flex: 1,
+    fontSize: 15,
+    fontFamily: 'Poppins-Regular',
+    color: Colors.text,
+  },
+  dropdownPlaceholderText: {
+    color: Colors.textLight,
+  },
+  dropdownChevron: {
+    marginLeft: 8,
+  },
+  dropdownChevronOpen: {
+    transform: [{ rotate: '180deg' }],
+  },
+  dropdownMenu: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    marginTop: 6,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+    overflow: 'hidden',
+  },
+  dropdownMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  dropdownMenuItemSelected: {
+    backgroundColor: `${Colors.primary}12`,
+  },
+  dropdownMenuItemBorder: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E5E7EB',
+  },
+  dropdownMenuItemText: {
+    fontSize: 15,
+    fontFamily: 'Poppins-Regular',
+    color: Colors.text,
+  },
+  dropdownMenuItemTextSelected: {
+    fontFamily: 'Poppins-SemiBold',
+    color: Colors.primary,
   },
   button: {
     backgroundColor: Colors.primary,
